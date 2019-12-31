@@ -941,7 +941,7 @@ class CFilteredRayResultCallback : public btCollisionWorld::ClosestRayResultCall
 			if (m_pConvexInfo && rayResult.m_localShapeInfo && rayResult.m_localShapeInfo->m_triangleIndex >= 0) {
 				btCollisionShape *pShape = ((btCompoundShape *)m_pShape)->getChildShape(rayResult.m_localShapeInfo->m_triangleIndex);
 				if (pShape) {
-					int contents = m_pConvexInfo->GetContents(pShape->getUserData());
+					int contents = m_pConvexInfo->GetContents(pShape->getUserIndex());
 
 					// If none of the contents are within the mask, abort!
 					if (!(contents & m_contentsMask)) {
@@ -973,7 +973,7 @@ class CFilteredConvexResultCallback : public btCollisionWorld::ClosestConvexResu
 			if (m_pConvexInfo && convexResult.m_localShapeInfo && convexResult.m_localShapeInfo->m_triangleIndex >= 0) {
 				btCollisionShape *pShape = ((btCompoundShape *)m_pShape)->getChildShape(convexResult.m_localShapeInfo->m_triangleIndex);
 				if (pShape) {
-					int contents = m_pConvexInfo->GetContents(pShape->getUserData());
+					int contents = m_pConvexInfo->GetContents(pShape->getUserIndex());
 
 					// If none of the contents are within the mask, abort!
 					if (!(contents & m_contentsMask)) {
@@ -1320,7 +1320,7 @@ static btConvexShape *LedgeToConvex(const ivpcompactledge_t *ledge) {
 #endif
 
 		// Transfer over the ledge's user data (data from Source)
-		pConvexOut->setUserData(ledge->client_data);
+		pConvexOut->setUserIndex(ledge->client_data);
 	}
 
 	return pConvexOut;
