@@ -21,3 +21,4 @@
 /ipch
 proj/gmake
 proj/vs2010
+.vs/*

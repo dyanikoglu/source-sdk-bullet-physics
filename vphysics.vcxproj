@@ -57,7 +57,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>$(SolutionDir)bullet\src;$(SolutionDir)include;$(SolutionDir)thirdparty\sourcesdk\mp\src\public;$(SolutionDir)thirdparty\sourcesdk\mp\src\public\tier0;$(SolutionDir)thirdparty\sourcesdk\mp\src\public\tier1;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)thirdparty\bullet3\src;$(SolutionDir)include;$(SolutionDir)thirdparty\sourcesdk\sp\src\public;$(SolutionDir)thirdparty\sourcesdk\sp\src\public\tier0;$(SolutionDir)thirdparty\sourcesdk\sp\src\public\tier1;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MinimalRebuild>false</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
@@ -72,7 +72,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>tier0.lib;tier1.lib;tier2.lib;mathlib.lib;vstdlib.lib;BulletCollision.lib;BulletDynamics.lib;BulletSoftBody.lib;BulletMultithreaded.lib;LinearMath.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)build\lib\$(Platform)\$(Configuration)\;$(SolutionDir)thirdparty\sourcesdk\mp\src\lib\public;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)build\lib\$(Platform)\$(Configuration)\;$(SolutionDir)thirdparty\sourcesdk\sp\src\lib\public;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <IgnoreSpecificDefaultLibraries>LIBCMT;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>NotSet</SubSystem>
@@ -108,7 +108,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)bullet\src;$(SolutionDir)include;$(SolutionDir)thirdparty\sourcesdk\mp\src\public;$(SolutionDir)thirdparty\sourcesdk\mp\src\public\tier0;$(SolutionDir)thirdparty\sourcesdk\mp\src\public\tier1;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)thirdparty\bullet3\src;$(SolutionDir)include;$(SolutionDir)thirdparty\sourcesdk\sp\src\public;$(SolutionDir)thirdparty\sourcesdk\sp\src\public\tier0;$(SolutionDir)thirdparty\sourcesdk\sp\src\public\tier1;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
@@ -124,7 +124,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>tier0.lib;tier1.lib;tier2.lib;mathlib.lib;vstdlib.lib;BulletCollision.lib;BulletDynamics.lib;BulletSoftBody.lib;BulletMultithreaded.lib;LinearMath.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)build\lib\$(Platform)\$(Configuration)\;$(SolutionDir)thirdparty\sourcesdk\mp\src\lib\public;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)build\lib\$(Platform)\$(Configuration)\;$(SolutionDir)thirdparty\sourcesdk\sp\src\lib\public;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>NotSet</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
