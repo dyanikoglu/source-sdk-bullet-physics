@@ -49,7 +49,7 @@
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <OutDir>$(SolutionDir)build\bin\$(Platform)\$(Configuration)\</OutDir>
+    <OutDir>C:\Program Files (x86)\Steam\steamapps\common\Source SDK Base 2013 Singleplayer\bin</OutDir>
     <IntDir>$(SolutionDir)build\obj\$(Platform)\$(ProjectName)\$(Configuration)\</IntDir>
     <TargetName>vphysics</TargetName>
     <LinkIncremental>false</LinkIncremental>
