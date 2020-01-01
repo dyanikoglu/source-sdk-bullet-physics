@@ -16,6 +16,7 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{D14B5456-0069-453D-A86A-D5B4CB35C6DD}</ProjectGuid>
     <RootNamespace>vphysics</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
@@ -43,7 +44,7 @@
     <_ProjectFileVersion>11.0.50214.1</_ProjectFileVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <OutDir>$(SolutionDir)build\bin\$(Platform)\$(Configuration)\</OutDir>
+    <OutDir>C:\Program Files (x86)\Steam\steamapps\common\Source SDK Base 2013 Singleplayer\bin</OutDir>
     <IntDir>$(SolutionDir)build\obj\$(Platform)\$(ProjectName)\$(Configuration)\</IntDir>
     <TargetName>vphysics</TargetName>
     <LinkIncremental>true</LinkIncremental>
@@ -72,7 +73,7 @@
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>tier0.lib;tier1.lib;tier2.lib;mathlib.lib;vstdlib.lib;BulletCollision.lib;BulletDynamics.lib;BulletSoftBody.lib;BulletMultithreaded.lib;LinearMath.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>tier0.lib;tier1.lib;tier2.lib;mathlib.lib;vstdlib.lib;BulletCollision.lib;BulletDynamics.lib;BulletSoftBody.lib;LinearMath.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)build\lib\$(Platform)\$(Configuration)\;$(SolutionDir)thirdparty\sourcesdk\sp\src\lib\public;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <IgnoreSpecificDefaultLibraries>LIBCMT;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -122,9 +123,11 @@
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <StringPooling>true</StringPooling>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <OmitFramePointers>true</OmitFramePointers>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>tier0.lib;tier1.lib;tier2.lib;mathlib.lib;vstdlib.lib;BulletCollision.lib;BulletDynamics.lib;BulletSoftBody.lib;BulletMultithreaded.lib;LinearMath.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>tier0.lib;tier1.lib;tier2.lib;mathlib.lib;vstdlib.lib;BulletCollision.lib;BulletDynamics.lib;BulletSoftBody.lib;LinearMath.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)build\lib\$(Platform)\$(Configuration)\;$(SolutionDir)thirdparty\sourcesdk\sp\src\lib\public;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>NotSet</SubSystem>
