@@ -31,13 +31,14 @@ abstract_class IPhysics32 : public IPhysics {
 
 abstract_class IPhysicsEnvironment32 : public IPhysicsEnvironment {
 	public:
+#if 0
 		// Create a convex soft body from vertices. Vertices are in world space!
 		virtual IPhysicsSoftBody *	CreateSoftBodyFromVertices(const Vector *vertices, int numVertices, const softbodyparams_t *pParams) = 0;
 		// Resolution is the amount of nodes in the rope. Higher number means less passthrough and a finer rope.
 		virtual IPhysicsSoftBody *	CreateSoftBodyRope(const Vector &start, const Vector &end, int resolution, const softbodyparams_t *pParams) = 0;
 		virtual IPhysicsSoftBody *	CreateSoftBodyPatch(const Vector *corners, int resx, int resy, const softbodyparams_t *pParams) = 0;
 		virtual void				DestroySoftBody(IPhysicsSoftBody *pSoftBody) = 0;
-
+#endif
 		// Constraint group is not required (can be NULL)
 		virtual IPhysicsConstraint *CreateGearConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, const constraint_gearparams_t &gear) = 0;
 		virtual IPhysicsConstraint *CreateUserConstraint(IPhysicsObject *pReferenceObject, IPhysicsObject *pAttachedObject, IPhysicsConstraintGroup *pGroup, IPhysicsUserConstraint *pConstraint) = 0;

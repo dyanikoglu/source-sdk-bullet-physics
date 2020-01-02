@@ -1,5 +1,5 @@
 #include "StdAfx.h"
-
+#if 0
 #include "convert.h"
 #include "Physics_SoftBody.h"
 #include "Physics_Environment.h"
@@ -339,3 +339,4 @@ CPhysicsSoftBody *CreateSoftBodyPatch(CPhysicsEnvironment *pEnv, const Vector *c
 
 	return pPhysBody;
 }
+#endif

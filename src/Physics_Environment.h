@@ -7,12 +7,11 @@
 #include <vphysics/performance.h>
 #include <vphysics/stats.h>
 
-class btThreadPool;
 class btCollisionConfiguration;
 class btDispatcher;
 class btBroadphaseInterface;
 class btConstraintSolver;
-class btSoftRigidDynamicsWorld;
+// class btSoftRigidDynamicsWorld;
 
 class IPhysicsConstraintGroup;
 class IPhysicsUserConstraint;
@@ -26,7 +25,8 @@ class CPhysicsDragController;
 class CPhysicsEnvironment;
 class CPhysicsConstraint;
 class CPhysicsObject;
-class CPhysicsSoftBody;
+class btConstraintSolverPoolMt;
+// class CPhysicsSoftBody;
 
 class CDebugDrawer;
 
@@ -165,7 +165,7 @@ public:
 	void									DebugCheckContacts();
 public:
 	// Unexposed functions
-	btSoftRigidDynamicsWorld *				GetBulletEnvironment();
+	btDiscreteDynamicsWorld*				GetBulletEnvironment();
 
 	float									GetInvPSIScale();
 	int										GetSimPSI() { return m_simPSI; }
@@ -182,7 +182,7 @@ public:
 	btVector3								GetMaxLinearVelocity() const;
 	btVector3								GetMaxAngularVelocity() const;
 
-	btThreadPool *							GetSharedThreadPool() const { return m_pSharedThreadPool; }
+	btConstraintSolverPoolMt *				GetConstraintSolverPool() const { return m_pConstraintSolverPool; }
 
 	void									DoCollisionEvents(float dt);
 
@@ -192,7 +192,7 @@ public:
 	void									HandleObjectEnteredTrigger(CPhysicsObject *pTrigger, CPhysicsObject *pObject);
 	void									HandleObjectExitedTrigger(CPhysicsObject *pTrigger, CPhysicsObject *pObject);
 
-	btSoftBodyWorldInfo &					GetSoftBodyWorldInfo() { return m_softBodyWorldInfo; }
+	// btSoftBodyWorldInfo &				GetSoftBodyWorldInfo() { return m_softBodyWorldInfo; }
 
 	// Soft body functions we'll expose at a later time...
 private:
@@ -208,19 +208,19 @@ private:
 	int										m_curSubStep;
 	float									m_subStepTime;
 
-	btThreadPool *							m_pSharedThreadPool;
+	btConstraintSolverPoolMt *				m_pConstraintSolverPool;
 	btCollisionConfiguration *				m_pBulletConfiguration;
 	btCollisionDispatcher *					m_pBulletDispatcher;
 	btBroadphaseInterface *					m_pBulletBroadphase;
 	btConstraintSolver *					m_pBulletSolver;
-	btSoftRigidDynamicsWorld *				m_pBulletEnvironment;
+	btDiscreteDynamicsWorld *				m_pBulletEnvironment;
 	btOverlappingPairCallback *				m_pBulletGhostCallback;
-	btSoftBodyWorldInfo						m_softBodyWorldInfo;
+	// btSoftBodyWorldInfo					m_softBodyWorldInfo;
 
 	CUtlVector<IPhysicsObject *>			m_objects;
 	CUtlVector<IPhysicsObject *>			m_deadObjects;
 	
-	CUtlVector<IPhysicsSoftBody *>			m_softBodies;
+	// CUtlVector<IPhysicsSoftBody *>		m_softBodies;
 	CUtlVector<CPhysicsFluidController *>	m_fluids;
 	CUtlVector<IController *>				m_controllers;
 

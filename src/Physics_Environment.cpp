@@ -23,29 +23,39 @@
 
 // Multithreading stuff
 
-// #define USE_PARALLEL_DISPATCHER
-// #define USE_PARALLEL_SOLVER // NOT COMPLETE
+// #define USE_PARALLEL_DISPATCHER // Not completed yet
+#define USE_PARALLEL_SOLVER 
+#define USE_PARALLEL_DYNAMICS
 
-#if defined(USE_PARALLEL_DISPATCHER) || defined(USE_PARALLEL_SOLVER)
+#if defined(USE_PARALLEL_DISPATCHER) || defined(USE_PARALLEL_DYNAMICS) || defined(USE_PARALLEL_ISLAND_MANAGER) || defined(USE_PARALLEL_SOLVER)
 	#define MULTITHREADED
 #endif
 
 #ifdef USE_PARALLEL_DISPATCHER
-	#include "BulletMultiThreaded/btParallelCollisionDispatcher.h"
+	#include "BulletCollision/CollisionDispatch/btCollisionDispatcherMt.h"
+#else
+	#include "BulletCollision/CollisionDispatch/btCollisionDispatcher.h"
+#endif
+
+#ifdef USE_PARALLEL_DYNAMICS
+	#include "BulletDynamics/Dynamics/btDiscreteDynamicsWorldMt.h"
+#else
+	#include "BulletDynamics/Dynamics/btDiscreteDynamicsWorld.h"
 #endif
 
 #ifdef USE_PARALLEL_SOLVER
-	#include "BulletMultiThreaded/btParallelConstraintSolver.h"
+#include "BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolverMt.h"
+#else
+#include "BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.h"
 #endif
 
-#include "BulletSoftBody/btSoftRigidDynamicsWorld.h"
-#include "BulletSoftBody/btSoftBodyRigidBodyCollisionConfiguration.h"
+#include "BulletCollision/CollisionDispatch/btDefaultCollisionConfiguration.h"
 
-#include "BulletCollision/CollisionDispatch/btCollisionDispatcher.h"
-#include "BulletCollision/CollisionDispatch/btSimulationIslandManager.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
+
+
 
 /*****************************
 * MISC. CLASSES
@@ -540,40 +550,29 @@ CPhysicsEnvironment::CPhysicsEnvironment() {
 	m_simPSICurrent = 0;
 	m_simPSI = 0;
 
-#ifdef MULTITHREADED
-	// Maximum number of parallel tasks (number of threads in the thread support)
-	// Good to set it to the same amount of CPU cores on the system.
-	// TODO: The game dev needs to be able to configure this value. Expose it in the interface.
-	int maxTasks = vphysics_numthreads.GetInt();
-
-	maxTasks = max(maxTasks, 1);
-	maxTasks = min(maxTasks, 8);
-
-	// Shared thread pool (used by both solver and dispatcher)
-	m_pSharedThreadPool = new btThreadPool;
-	m_pSharedThreadPool->startThreads(maxTasks);
-#endif
-
-	btDefaultCollisionConstructionInfo cci;
-	m_pBulletConfiguration = new btSoftBodyRigidBodyCollisionConfiguration(cci);
+	m_pBulletConfiguration = new btDefaultCollisionConfiguration();
 
 #ifdef USE_PARALLEL_DISPATCHER
-	m_pBulletDispatcher = new btParallelCollisionDispatcher(m_pBulletConfiguration, m_pSharedThreadPool);
+	m_pBulletDispatcher = new btCollisionDispatcherMt(m_pBulletConfiguration);
 #else
 	m_pBulletDispatcher = new btCollisionDispatcher(m_pBulletConfiguration);
 #endif
 
 #ifdef USE_PARALLEL_SOLVER
-	m_pBulletSolver = new btParallelConstraintSolver(m_pSharedThreadPool);
+	m_pBulletSolver = new btSequentialImpulseConstraintSolverMt;
 #else
 	m_pBulletSolver = new btSequentialImpulseConstraintSolver;
 #endif
 
 	m_pBulletBroadphase = new btDbvtBroadphase;
 
-	// Note: The soft body solver (last default-arg in the constructor) is used for OpenCL stuff (as per the Soft Body Demo)
-	m_pBulletEnvironment = new btSoftRigidDynamicsWorld(m_pBulletDispatcher, m_pBulletBroadphase, m_pBulletSolver, m_pBulletConfiguration);
-
+#ifdef USE_PARALLEL_DYNAMICS
+	m_pConstraintSolverPool = new btConstraintSolverPoolMt(12);
+	m_pBulletEnvironment = new btDiscreteDynamicsWorldMt(m_pBulletDispatcher, m_pBulletBroadphase, m_pConstraintSolverPool, m_pBulletSolver, m_pBulletConfiguration);
+#else
+	m_pBulletEnvironment = new btDiscreteDynamicsWorld(m_pBulletDispatcher, m_pBulletBroadphase, m_pBulletSolver, m_pBulletConfiguration);
+#endif
+	
 	m_pBulletGhostCallback = new btGhostPairCallback;
 	m_pCollisionSolver = new CCollisionSolver(this);
 	m_pBulletEnvironment->getPairCache()->setOverlapFilterCallback(m_pCollisionSolver);
@@ -587,10 +586,10 @@ CPhysicsEnvironment::CPhysicsEnvironment() {
 	memset(&m_stats, 0, sizeof(m_stats));
 
 	// Soft body stuff
-	m_softBodyWorldInfo.m_broadphase = m_pBulletBroadphase;
+	/*m_softBodyWorldInfo.m_broadphase = m_pBulletBroadphase;
 	m_softBodyWorldInfo.m_dispatcher = m_pBulletDispatcher;
 
-	m_softBodyWorldInfo.m_sparsesdf.Initialize();
+	m_softBodyWorldInfo.m_sparsesdf.Initialize();*/
 
 	m_pBulletEnvironment->getSolverInfo().m_solverMode |= SOLVER_SIMD;
 
@@ -627,12 +626,12 @@ CPhysicsEnvironment::~CPhysicsEnvironment() {
 		delete m_objects[i];
 	}
 
-	for (int i = m_softBodies.Count() - 1; i >= 0; --i) {
+	/*for (int i = m_softBodies.Count() - 1; i >= 0; --i) {
 		delete m_softBodies[i];
-	}
+	}*/
 
 	m_objects.RemoveAll();
-	m_softBodies.RemoveAll();
+	// m_softBodies.RemoveAll();
 	CleanupDeleteList();
 
 	delete m_pDeleteQueue;
@@ -645,20 +644,13 @@ CPhysicsEnvironment::~CPhysicsEnvironment() {
 	delete m_pBulletConfiguration;
 	delete m_pBulletGhostCallback;
 
-#ifdef MULTITHREADED
-	m_pSharedThreadPool->stopThreads();
-	delete m_pSharedThreadPool;
-#endif
-
 	delete m_pCollisionListener;
 	delete m_pCollisionSolver;
 	delete m_pObjectTracker;
 }
 
 void CPhysicsEnvironment::ChangeThreadCount(int newThreadCount) {
-#ifdef MULTITHREADED
-	m_pSharedThreadPool->resizeThreads(newThreadCount);
-#endif
+	// TODO
 }
 
 // UNEXPOSED
@@ -694,7 +686,7 @@ void CPhysicsEnvironment::SetGravity(const Vector &gravityVector) {
 	ConvertPosToBull(gravityVector, temp);
 
 	m_pBulletEnvironment->setGravity(temp);
-	m_softBodyWorldInfo.m_gravity = temp;
+	// m_softBodyWorldInfo.m_gravity = temp;
 }
 
 void CPhysicsEnvironment::GetGravity(Vector *pGravityVector) const {
@@ -708,7 +700,7 @@ void CPhysicsEnvironment::SetAirDensity(float density) {
 	m_pPhysicsDragController->SetAirDensity(density);
 
 	// Density is kg/in^3 from HL
-	m_softBodyWorldInfo.air_density = density / CUBIC_METERS_PER_CUBIC_INCH;
+	// m_softBodyWorldInfo.air_density = density / CUBIC_METERS_PER_CUBIC_INCH;
 }
 
 float CPhysicsEnvironment::GetAirDensity() const {
@@ -750,6 +742,7 @@ void CPhysicsEnvironment::DestroyObject(IPhysicsObject *pObject) {
 	}
 }
 
+#if 0
 IPhysicsSoftBody *CPhysicsEnvironment::CreateSoftBody() {
 	CPhysicsSoftBody *pSoftBody = ::CreateSoftBody(this);
 	if (pSoftBody)
@@ -793,7 +786,7 @@ void CPhysicsEnvironment::DestroySoftBody(IPhysicsSoftBody *pSoftBody) {
 		delete pSoftBody;
 	}
 }
-
+#endif
 IPhysicsFluidController *CPhysicsEnvironment::CreateFluidController(IPhysicsObject *pFluidObject, fluidparams_t *pParams) {
 	CPhysicsFluidController *pFluid = ::CreateFluidController(this, (CPhysicsObject *)pFluidObject, pParams);
 	if (pFluid)
@@ -1001,7 +994,7 @@ void CPhysicsEnvironment::Simulate(float deltaTime) {
 #endif
 
 	// FIXME: See if this is even needed here
-	m_softBodyWorldInfo.m_sparsesdf.GarbageCollect();
+	// m_softBodyWorldInfo.m_sparsesdf.GarbageCollect();
 }
 
 bool CPhysicsEnvironment::IsInSimulation() const {
@@ -1256,7 +1249,7 @@ void CPhysicsEnvironment::DebugCheckContacts() {
 }
 
 // UNEXPOSED
-btSoftRigidDynamicsWorld *CPhysicsEnvironment::GetBulletEnvironment() {
+btDiscreteDynamicsWorld *CPhysicsEnvironment::GetBulletEnvironment() {
 	return m_pBulletEnvironment;
 }
 
