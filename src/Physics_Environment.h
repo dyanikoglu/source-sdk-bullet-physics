@@ -7,11 +7,11 @@
 #include <vphysics/performance.h>
 #include <vphysics/stats.h>
 
+class CPhysThreadManager;
 class btCollisionConfiguration;
 class btDispatcher;
 class btBroadphaseInterface;
 class btConstraintSolver;
-// class btSoftRigidDynamicsWorld;
 
 class IPhysicsConstraintGroup;
 class IPhysicsUserConstraint;
@@ -26,7 +26,6 @@ class CPhysicsEnvironment;
 class CPhysicsConstraint;
 class CPhysicsObject;
 class btConstraintSolverPoolMt;
-// class CPhysicsSoftBody;
 
 class CDebugDrawer;
 
@@ -58,7 +57,7 @@ public:
 
 	void									SetDebugOverlay(CreateInterfaceFn debugOverlayFactory);
 	IVPhysicsDebugOverlay *					GetDebugOverlay();
-	btIDebugDraw *							GetDebugDrawer();
+	btIDebugDraw *							GetDebugDrawer() const;
 
 	void									SetGravity(const Vector &gravityVector);
 	void									GetGravity(Vector *pGravityVector) const;
@@ -165,32 +164,30 @@ public:
 	void									DebugCheckContacts();
 public:
 	// Unexposed functions
-	btDiscreteDynamicsWorld*				GetBulletEnvironment();
+	btDiscreteDynamicsWorld*				GetBulletEnvironment() const;
 
-	float									GetInvPSIScale();
+	float									GetInvPSIScale() const;
 	int										GetSimPSI() { return m_simPSI; }
 	float									GetSubStepTime() { return m_subStepTime; }
 	int										GetNumSubSteps() { return m_numSubSteps; }
 	int										GetCurSubStep() { return m_curSubStep; }
 
 	void									BulletTick(btScalar timeStep);
-	CPhysicsDragController *				GetDragController();
-	CCollisionSolver *						GetCollisionSolver();
+	CPhysicsDragController *				GetDragController() const;
+	CCollisionSolver *						GetCollisionSolver() const;
 
 	physics_performanceparams_t &			GetPerformanceSettings() { return m_perfparams; }
 	const physics_performanceparams_t &		GetPerformanceSettings() const { return m_perfparams; }
 	btVector3								GetMaxLinearVelocity() const;
 	btVector3								GetMaxAngularVelocity() const;
 
-	btConstraintSolverPoolMt *				GetConstraintSolverPool() const { return m_pConstraintSolverPool; }
-
 	void									DoCollisionEvents(float dt);
 
-	void									HandleConstraintBroken(CPhysicsConstraint *pConstraint); // Call this if you're a constraint that was just disabled/broken.
-	void									HandleFluidStartTouch(CPhysicsFluidController *pController, CPhysicsObject *pObject);
-	void									HandleFluidEndTouch(CPhysicsFluidController *pController, CPhysicsObject *pObject);
-	void									HandleObjectEnteredTrigger(CPhysicsObject *pTrigger, CPhysicsObject *pObject);
-	void									HandleObjectExitedTrigger(CPhysicsObject *pTrigger, CPhysicsObject *pObject);
+	void									HandleConstraintBroken(CPhysicsConstraint *pConstraint) const; // Call this if you're a constraint that was just disabled/broken.
+	void									HandleFluidStartTouch(CPhysicsFluidController *pController, CPhysicsObject *pObject) const;
+	void									HandleFluidEndTouch(CPhysicsFluidController *pController, CPhysicsObject *pObject) const;
+	void									HandleObjectEnteredTrigger(CPhysicsObject *pTrigger, CPhysicsObject *pObject) const;
+	void									HandleObjectExitedTrigger(CPhysicsObject *pTrigger, CPhysicsObject *pObject) const;
 
 	// btSoftBodyWorldInfo &				GetSoftBodyWorldInfo() { return m_softBodyWorldInfo; }
 
@@ -204,11 +201,10 @@ private:
 	float									m_invPSIScale;
 	int										m_simPSICurrent;
 	int										m_simPSI;
-	int										m_numSubSteps;
-	int										m_curSubStep;
-	float									m_subStepTime;
+	int										m_numSubSteps{};
+	int										m_curSubStep{};
+	float									m_subStepTime{};
 
-	btConstraintSolverPoolMt *				m_pConstraintSolverPool;
 	btCollisionConfiguration *				m_pBulletConfiguration;
 	btCollisionDispatcher *					m_pBulletDispatcher;
 	btBroadphaseInterface *					m_pBulletBroadphase;
@@ -224,7 +220,7 @@ private:
 	CUtlVector<CPhysicsFluidController *>	m_fluids;
 	CUtlVector<IController *>				m_controllers;
 
-	CCollisionEventListener *				m_pCollisionListener;
+	CCollisionEventListener *				m_pCollisionListener{};
 	CCollisionSolver *						m_pCollisionSolver;
 	CDeleteQueue *							m_pDeleteQueue;
 	CObjectTracker *						m_pObjectTracker;
@@ -235,10 +231,12 @@ private:
 	IPhysicsConstraintEvent *				m_pConstraintEvent;
 	IPhysicsObjectEvent *					m_pObjectEvent;
 
-	physics_performanceparams_t				m_perfparams;
-	physics_stats_t							m_stats;
+	physics_performanceparams_t				m_perfparams{};
+	physics_stats_t							m_stats{};
 
-	CDebugDrawer *							m_debugdraw;
+	CDebugDrawer *							m_debugdraw{};
+
+	CPhysThreadManager*						m_pThreadManager;
 };
 
 #endif // PHYSICS_ENVIRONMENT_H

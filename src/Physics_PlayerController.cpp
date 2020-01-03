@@ -359,7 +359,7 @@ void CPlayerController::CalculateVelocity(float dt) {
 	}
 
 	// TODO: Clamp the velocity based on collisions (using variables such as push max mass, max speed etc)
-	btScalar velLen = linVel.length2();
+	// btScalar velLen = linVel.length2();
 
 	body->setLinearVelocity(linVel + baseVelocity);
 }

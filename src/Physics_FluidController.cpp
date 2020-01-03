@@ -133,7 +133,7 @@ static btVector3 calcConvexCenter(btConvexHullShape *pShape, btVector3 &planePos
 				sum += pShape->getScaledPoint(i);
 		}
 
-		sum /= pShape->getNumPoints();
+		sum /= static_cast<btScalar>(pShape->getNumPoints());
 	}
 
 	return sum;
@@ -162,7 +162,7 @@ static btVector3 calculateBuoyantCenter(btRigidBody *pBody, btVector3 &planePos,
 		}
 
 		if (pCompound->getNumChildShapes() > 0)
-			center /= pCompound->getNumChildShapes();
+			center /= static_cast<btScalar>(pCompound->getNumChildShapes());
 	}
 
 	return center;
@@ -185,7 +185,7 @@ void CPhysicsFluidController::Tick(float dt) {
 		btVector3 surfNorm;
 		ConvertDirectionToBull(m_vSurfacePlane.AsVector3D(), surfNorm);
 
-		btScalar fluidLen = ConvertDistanceToBull(m_vSurfacePlane.w);
+		// btScalar fluidLen = ConvertDistanceToBull(m_vSurfacePlane.w);
 
 		btVector3 omins, omaxs;
 		m_pGhostObject->getCollisionShape()->getAabb(m_pGhostObject->getWorldTransform(), omins, omaxs);
@@ -222,7 +222,7 @@ void CPhysicsFluidController::Tick(float dt) {
 
 			// Calc the volume coefficient
 			btScalar dist = -submerged;
-			float p = clamp(dist / 1.2, 0.f, 1.f);
+			float p = clamp(dist / 1.2f, 0.f, 1.f);
 			btScalar vol = p * pObject->GetVolume();
 
 			// TODO: Need a way to calculate this properly

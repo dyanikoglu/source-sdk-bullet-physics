@@ -36,7 +36,7 @@ CPhysics::~CPhysics() {
 }
 
 InitReturnVal_t CPhysics::Init() {
-	InitReturnVal_t nRetVal = BaseClass::Init();
+	const InitReturnVal_t nRetVal = BaseClass::Init();
 	if (nRetVal != INIT_OK) return nRetVal;
 
 	// Hook up our debug output functions
@@ -51,7 +51,7 @@ void CPhysics::Shutdown() {
 }
 
 void *CPhysics::QueryInterface(const char *pInterfaceName) {
-	CreateInterfaceFn func = Sys_GetFactoryThis();
+	const CreateInterfaceFn func = Sys_GetFactoryThis();
 	if (!func)
 		return NULL;
 
@@ -66,7 +66,7 @@ IPhysicsEnvironment *CPhysics::CreateEnvironment() {
 
 void CPhysics::DestroyEnvironment(IPhysicsEnvironment *pEnvironment) {
 	m_envList.FindAndRemove(pEnvironment);
-	delete (CPhysicsEnvironment *)pEnvironment;
+	delete dynamic_cast<CPhysicsEnvironment*>(pEnvironment);
 }
 
 IPhysicsEnvironment *CPhysics::GetActiveEnvironmentByIndex(int index) {
@@ -83,7 +83,7 @@ IPhysicsObjectPairHash *CPhysics::CreateObjectPairHash() {
 }
 
 void CPhysics::DestroyObjectPairHash(IPhysicsObjectPairHash *pHash) {
-	delete (CPhysicsObjectPairHash *)pHash;
+	delete dynamic_cast<CPhysicsObjectPairHash*>(pHash);
 }
 
 IPhysicsCollisionSet *CPhysics::FindOrCreateCollisionSet(unsigned int id, int maxElementCount) {
@@ -93,7 +93,7 @@ IPhysicsCollisionSet *CPhysics::FindOrCreateCollisionSet(unsigned int id, int ma
 	CPhysicsCollisionSet *set = NULL;
 	if (maxElementCount < sizeof(int) * 8) { // Limit of 32 because of the way this works internally
 		set = ::CreateCollisionSet(maxElementCount);
-		int vecId = m_collisionSets.AddToTail(set);
+		const int vecId = m_collisionSets.AddToTail(set);
 
 		m_colSetTable.Insert(id, vecId);
 	}
@@ -110,7 +110,7 @@ IPhysicsCollisionSet *CPhysics::FindCollisionSet(unsigned int id) {
 
 void CPhysics::DestroyAllCollisionSets() {
 	for (int i = 0; i < m_collisionSets.Count(); i++)
-		delete (CPhysicsCollisionSet *)m_collisionSets[i];
+		delete dynamic_cast<CPhysicsCollisionSet*>(m_collisionSets[i]);
 
 	m_collisionSets.RemoveAll();
 	m_colSetTable.RemoveAll();

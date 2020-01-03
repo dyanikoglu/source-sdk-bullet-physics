@@ -19,7 +19,7 @@
 #include <BulletCollision/CollisionDispatch/btGhostObject.h>
 
 #if defined(_WIN32)
-	#define DEBUG_DRAW 1
+	#define DEBUG_DRAW 0
 #endif
 
 // Probably shouldn't be using defines for these.

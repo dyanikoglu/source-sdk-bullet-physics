@@ -244,17 +244,17 @@ btConvexTriangleMeshShape *CreateTriMeshFromHull(HullResult &res) {
 	// Duplicate the output vertex array
 	mesh.m_numVertices = res.mNumOutputVertices;
 	btVector3 *pVerts = new btVector3[res.mNumOutputVertices];
-	for (int i = 0; i < res.mNumOutputVertices; i++) {
+	for (uint i = 0; i < res.mNumOutputVertices; i++) {
 		pVerts[i] = res.m_OutputVertices[i];
 	}
 
-	mesh.m_vertexBase = (unsigned char *)pVerts;
+	mesh.m_vertexBase = reinterpret_cast<unsigned char*>(pVerts);
 	mesh.m_vertexStride = sizeof(btVector3);
 	mesh.m_vertexType = PHY_FLOAT;
 
 	// Duplicate the index array
-	unsigned short *pIndices = new unsigned short[res.mNumIndices];
-	for (int i = 0; i < res.mNumIndices; i++) {
+	unsigned int *pIndices = new unsigned int[res.mNumIndices];
+	for (uint i = 0; i < res.mNumIndices; i++) {
 		pIndices[i] = res.m_Indices[i];
 	}
 
