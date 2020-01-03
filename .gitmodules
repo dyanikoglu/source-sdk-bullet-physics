@@ -7,3 +7,6 @@
 [submodule "thirdparty/bullet3"]
 	path = thirdparty/bullet3
 	url = https://github.com/dyanikoglu/bullet3.git
+[submodule "thirdparty/tbb"]
+	path = thirdparty/tbb
+	url = https://github.com/dyanikoglu/tbb-prebuilt.git
