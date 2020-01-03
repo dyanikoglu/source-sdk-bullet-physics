@@ -44,13 +44,13 @@
     <_ProjectFileVersion>11.0.50214.1</_ProjectFileVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <OutDir>C:\Program Files (x86)\Steam\steamapps\common\Source SDK Base 2013 Singleplayer\bin</OutDir>
+    <OutDir>C:\Program Files (x86)\Steam\steamapps\common\Source SDK Base 2013 Singleplayer\bin\</OutDir>
     <IntDir>$(SolutionDir)build\obj\$(Platform)\$(ProjectName)\$(Configuration)\</IntDir>
     <TargetName>vphysics</TargetName>
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <OutDir>C:\Program Files (x86)\Steam\steamapps\common\Source SDK Base 2013 Singleplayer\bin</OutDir>
+    <OutDir>C:\Program Files (x86)\Steam\steamapps\common\Source SDK Base 2013 Singleplayer\bin\</OutDir>
     <IntDir>$(SolutionDir)build\obj\$(Platform)\$(ProjectName)\$(Configuration)\</IntDir>
     <TargetName>vphysics</TargetName>
     <LinkIncremental>false</LinkIncremental>

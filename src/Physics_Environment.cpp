@@ -1240,7 +1240,7 @@ float CPhysicsEnvironment::GetInvPSIScale() const
 void CPhysicsEnvironment::BulletTick(btScalar dt) {
 	// Dirty hack to spread the controllers throughout the current simulation step
 	if (m_simPSICurrent) {
-		m_invPSIScale = 1.0f / (float)m_simPSICurrent;
+		m_invPSIScale = 1.0f / static_cast<float>(m_simPSICurrent);
 		m_simPSICurrent--;
 	} else {
 		m_invPSIScale = 0;
@@ -1263,7 +1263,7 @@ void CPhysicsEnvironment::BulletTick(btScalar dt) {
 		CleanupDeleteList();
 	}
 
-	//DoCollisionEvents(dt);
+	// DoCollisionEvents(dt);
 
 	//m_pCollisionSolver->EventPSI(this);
 	//m_pCollisionListener->EventPSI(this);
