@@ -1,6 +1,7 @@
 #include "StdAfx.h"
 
 #include <cmodel.h>
+#include <cstring>
 
 #include "Physics_Environment.h"
 #include "Physics.h"
@@ -13,7 +14,6 @@
 #include "Physics_Constraint.h"
 #include "Physics_Collision.h"
 #include "Physics_VehicleController.h"
-#include "Physics_Multithreading.h"
 #include "miscmath.h"
 #include "convert.h"
 
@@ -22,9 +22,18 @@
 #endif
 
 #include "BulletCollision/CollisionDispatch/btDefaultCollisionConfiguration.h"
+#include "BulletDynamics/MLCPSolvers/btMLCPSolver.h"
+#include "BulletDynamics/MLCPSolvers/btLemkeSolver.h"
+#include "BulletDynamics/MLCPSolvers/btDantzigSolver.h"
+#include "BulletDynamics/MLCPSolvers/btSolveProjectedGaussSeidel.h"
+#include "BulletDynamics/ConstraintSolver/btNNCGConstraintSolver.h"
+#include "BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolverMt.h"
+#include "BulletDynamics/Dynamics/btDiscreteDynamicsWorldMt.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
+
+
 
 /*****************************
 * MISC. CLASSES
@@ -139,7 +148,7 @@ bool CCollisionSolver::NeedsCollision(CPhysicsObject *pObject0, CPhysicsObject *
 
 void SerializeWorld_f(const CCommand &args) {
 	if (args.ArgC() != 3) {
-		Msg("Usage: vphysics_serialize <index> <name>\n");
+		Msg("Usage: bt_serialize <index> <name>\n");
 		return;
 	}
 
@@ -165,7 +174,7 @@ void SerializeWorld_f(const CCommand &args) {
 	}
 }
 
-static ConCommand cmd_serializeworld("vphysics_serialize", SerializeWorld_f, "Serialize environment by index (usually 0=server, 1=client)\n\tDumps the file out to the exe directory.");
+static ConCommand cmd_serializeworld("bt_serialize", SerializeWorld_f, "Serialize environment by index (usually 0=server, 1=client)\n\tDumps the file out to the exe directory.");
 
 /*******************************
 * CLASS CObjectTracker
@@ -487,10 +496,118 @@ class CCollisionEventListener : public btSolveCallback {
 };
 
 /*******************************
+* Bullet Dynamics World Static References
+*******************************/
+
+// TODO: See if this dynamics world pointer is right, it's assigned twice
+static bool gBulletDynamicsWorldGuard = false;
+static btDynamicsWorld* gBulletDynamicsWorld = NULL;
+
+#ifdef BT_THREADSAFE
+static bool gMultithreadedWorld = true;
+static SolverType gSolverType = SOLVER_TYPE_SEQUENTIAL_IMPULSE_MT;
+#else
+static bool gMultithreadedWorld = false;
+static SolverType gSolverType = SOLVER_TYPE_SEQUENTIAL_IMPULSE;
+#endif
+
+static int gSolverMode = SOLVER_SIMD | SOLVER_USE_WARMSTARTING | 
+	/*SOLVER_RANDMIZE_ORDER | SOLVER_INTERLEAVE_CONTACT_AND_FRICTION_CONSTRAINTS | SOLVER_USE_2_FRICTION_DIRECTIONS |*/ 0;
+
+/*******************************
+* Bullet Dynamics World ConVars
+*******************************/
+
+// bt_solveriterations
+static void cvar_solver_iterations_Change(IConVar *var, const char *pOldValue, float flOldValue);
+static ConVar cvar_solver_iterations("bt_solver_iterations", "10", FCVAR_REPLICATED, "Number of collision solver iterations", true, 1, true, 30, cvar_solver_iterations_Change);
+static void cvar_solver_iterations_Change(IConVar *var, const char *pOldValue, float flOldValue)
+{
+	if(gBulletDynamicsWorld)
+	{
+		gBulletDynamicsWorld->getSolverInfo().m_numIterations = cvar_solver_iterations.GetInt();
+		Msg("Solver iteration count is changed from %i to %i\n", static_cast<int>(flOldValue), cvar_solver_iterations.GetInt());
+	}
+}
+
+// bt_solver_residualthreshold
+static void cvar_solver_residualthreshold_Change(IConVar *var, const char *pOldValue, float flOldValue);
+static ConVar cvar_solver_residualthreshold("bt_solver_residualthreshold", "0.0", FCVAR_REPLICATED, "Solver leastSquaresResidualThreshold (used to run fewer solver iterations when convergence is good)", true, 0.0f, true, 0.25f, cvar_solver_residualthreshold_Change);
+static void cvar_solver_residualthreshold_Change(IConVar *var, const char *pOldValue, float flOldValue)
+{
+	if (gBulletDynamicsWorld)
+	{
+		gBulletDynamicsWorld->getSolverInfo().m_leastSquaresResidualThreshold = cvar_solver_residualthreshold.GetFloat();
+		Msg("Solver residual threshold is changed from %f to %f\n", flOldValue, cvar_solver_residualthreshold.GetFloat());
+	}
+}
+
+// bt_substeps
+static ConVar cvar_world_substeps("bt_world_substeps", "1", FCVAR_REPLICATED, "The amount of simulation substeps (higher number means higher precision)", true, 1, true, 8);
+
+// Threadsafe specific console variables
+#ifdef BT_THREADSAFE
+
+// bt_threadcount
+static void cvar_threadcount_Change(IConVar *var, const char *pOldValue, float flOldValue);
+static ConVar cvar_threadcount("bt_threadcount", "1", FCVAR_REPLICATED, "Number of cores utilized by bullet task scheduler. By default, TBB sets this to optimal value", true, 1, true, BT_MAX_THREAD_COUNT, cvar_threadcount_Change);
+static void cvar_threadcount_Change(IConVar *var, const char *pOldValue, float flOldValue)
+{
+	const int newNumThreads = min(cvar_threadcount.GetInt(), int(BT_MAX_THREAD_COUNT));
+	const int oldNumThreads = btGetTaskScheduler()->getNumThreads();
+	// only call when the thread count is different
+	if (newNumThreads != oldNumThreads)
+	{
+		btGetTaskScheduler()->setNumThreads(newNumThreads);
+		Msg("Changed %s task scheduler thread count from %i to %i\n", btGetTaskScheduler()->getName(), oldNumThreads, newNumThreads);
+	}
+}
+
+// bt_island_batchingthreshold
+static void cvar_island_batchingthreshold_Change(IConVar *var, const char *pOldValue, float flOldValue);
+static ConVar cvar_island_batchingthreshold("bt_solver_islandbatchingthreshold", std::to_string(btSequentialImpulseConstraintSolverMt::s_minimumContactManifoldsForBatching).c_str(), FCVAR_REPLICATED, "If the number of manifolds that an island have reaches to that value, they will get batched", true, 1, true, 2000, cvar_island_batchingthreshold_Change);
+static void cvar_island_batchingthreshold_Change(IConVar *var, const char *pOldValue, float flOldValue)
+{
+	btSequentialImpulseConstraintSolverMt::s_minimumContactManifoldsForBatching = cvar_island_batchingthreshold.GetInt();
+	Msg("Island batching threshold is changed from %i to %i\n", static_cast<int>(flOldValue), cvar_island_batchingthreshold.GetInt());
+}
+
+// bt_solver_minbatchsize
+static void cvar_solver_minbatchsize_Change(IConVar *var, const char *pOldValue, float flOldValue);
+static ConVar cvar_solver_minbatchsize("bt_solver_minbatchsize", std::to_string(btSequentialImpulseConstraintSolverMt::s_minBatchSize).c_str(), FCVAR_REPLICATED, "Minimum size of batches for solver", true, 1, true, 1000, cvar_solver_minbatchsize_Change);
+
+// bt_solver_maxbatchsize
+static void cvar_solver_maxbatchsize_Change(IConVar *var, const char *pOldValue, float flOldValue);
+static ConVar cvar_solver_maxbatchsize("bt_solver_maxbatchsize", std::to_string(btSequentialImpulseConstraintSolverMt::s_maxBatchSize).c_str(), FCVAR_REPLICATED, "Maximum size of batches for solver", true, 1, true, 1000, cvar_solver_maxbatchsize_Change);
+
+static void cvar_solver_minbatchsize_Change(IConVar *var, const char *pOldValue, float flOldValue)
+{
+	cvar_solver_maxbatchsize.SetValue(max(cvar_solver_maxbatchsize.GetInt(), cvar_solver_minbatchsize.GetInt()));
+	btSequentialImpulseConstraintSolverMt::s_minBatchSize = cvar_solver_minbatchsize.GetInt();
+	btSequentialImpulseConstraintSolverMt::s_maxBatchSize = cvar_solver_maxbatchsize.GetInt();
+
+	Msg("Min batch size for solver is changed from %i to %i\n", flOldValue, cvar_solver_minbatchsize.GetFloat());
+}
+
+static void cvar_solver_maxbatchsize_Change(IConVar *var, const char *pOldValue, float flOldValue)
+{
+	cvar_solver_minbatchsize.SetValue(min(cvar_solver_maxbatchsize.GetInt(), cvar_solver_minbatchsize.GetInt()));
+	btSequentialImpulseConstraintSolverMt::s_minBatchSize = cvar_solver_minbatchsize.GetInt();
+	btSequentialImpulseConstraintSolverMt::s_maxBatchSize = cvar_solver_maxbatchsize.GetInt();
+
+	Msg("Max batch size for solver is changed from %i to %i\n", flOldValue, cvar_solver_maxbatchsize.GetFloat());
+}
+
+#endif
+
+
+/*******************************
 * CLASS CPhysicsEnvironment
 *******************************/
 
 CPhysicsEnvironment::CPhysicsEnvironment() {
+	m_multithreadedWorld = false;
+	m_multithreadCapable = false;
 	m_deleteQuick		= false;
 	m_bUseDeleteQueue	= false;
 	m_inSimulation		= false;
@@ -505,7 +622,7 @@ CPhysicsEnvironment::CPhysicsEnvironment() {
 	m_pBulletBroadphase		= NULL;
 	m_pBulletConfiguration	= NULL;
 	m_pBulletDispatcher		= NULL;
-	m_pBulletEnvironment	= NULL;
+	m_pBulletDynamicsWorld	= NULL;
 	m_pBulletGhostCallback	= NULL;
 	m_pBulletSolver			= NULL;
 
@@ -514,36 +631,169 @@ CPhysicsEnvironment::CPhysicsEnvironment() {
 	m_simPSICurrent = 0;
 	m_simPSI = 0;
 
-	m_pBulletConfiguration = new btDefaultCollisionConfiguration();
+	// Initilize task scheduler, we will be using TBB
+	// btSetTaskScheduler(btGetSequentialTaskScheduler()); // Can be used for debugging purposes
+	btSetTaskScheduler(btGetTBBTaskScheduler());
+	const int maxNumThreads = btGetTBBTaskScheduler()->getMaxNumThreads();
+	btGetTBBTaskScheduler()->setNumThreads(maxNumThreads);
+	cvar_threadcount.SetValue(maxNumThreads);
 
-#ifdef BT_THREADSAFE
-	m_pThreadManager = new CPhysThreadManager;
-	m_pThreadManager->init();
+	// Create a fresh new dynamics world
+	CreateEmptyDynamicsWorld();
+}
+
+CPhysicsEnvironment::~CPhysicsEnvironment() {
+#if DEBUG_DRAW
+	delete m_debugdraw;
 #endif
+	CPhysicsEnvironment::SetQuickDelete(true);
 
-#ifdef USE_PARALLEL_DISPATCHER
-	m_pBulletDispatcher = new btCollisionDispatcherMt(m_pBulletConfiguration);
-#else
-	m_pBulletDispatcher = new btCollisionDispatcher(m_pBulletConfiguration);
-#endif
+	for (int i = m_objects.Count() - 1; i >= 0; --i) {
+		delete m_objects[i];
+	}
 
-#ifdef USE_PARALLEL_SOLVER
-	m_pBulletSolver = new btSequentialImpulseConstraintSolverMt;
-#else
-	m_pBulletSolver = new btSequentialImpulseConstraintSolver;
-#endif
+	m_objects.RemoveAll();
+	CPhysicsEnvironment::CleanupDeleteList();
 
-	m_pBulletBroadphase = new btDbvtBroadphase;
+	delete m_pDeleteQueue;
+	delete m_pPhysicsDragController;
 
-#ifdef USE_PARALLEL_DYNAMICS
-	m_pBulletEnvironment = new btDiscreteDynamicsWorldMt(m_pBulletDispatcher, m_pBulletBroadphase, m_pThreadManager->GetConstraintSolverPool(), m_pBulletSolver, m_pBulletConfiguration);
-#else
-	m_pBulletEnvironment = new btDiscreteDynamicsWorld(m_pBulletDispatcher, m_pBulletBroadphase, m_pBulletSolver, m_pBulletConfiguration);
-#endif
+	delete m_pBulletDynamicsWorld;
+	delete m_pBulletSolver;
+	delete m_pBulletBroadphase;
+	delete m_pBulletDispatcher;
+	delete m_pBulletConfiguration;
+	delete m_pBulletGhostCallback;
+
+	// delete m_pCollisionListener;
+	delete m_pCollisionSolver;
+	delete m_pObjectTracker;
+}
+
+btConstraintSolver* createSolverByType(SolverType t)
+{
+	btMLCPSolverInterface* mlcpSolver = NULL;
+	switch (t)
+	{
+		case SOLVER_TYPE_SEQUENTIAL_IMPULSE:
+			return new btSequentialImpulseConstraintSolver();
+		case SOLVER_TYPE_SEQUENTIAL_IMPULSE_MT:
+			return new btSequentialImpulseConstraintSolverMt();
+		case SOLVER_TYPE_NNCG:
+			return new btNNCGConstraintSolver();
+		case SOLVER_TYPE_MLCP_PGS:
+			mlcpSolver = new btSolveProjectedGaussSeidel();
+			break;
+		case SOLVER_TYPE_MLCP_DANTZIG:
+			mlcpSolver = new btDantzigSolver();
+			break;
+		case SOLVER_TYPE_MLCP_LEMKE:
+			mlcpSolver = new btLemkeSolver();
+			break;
+		default:
+			assert(false);
+			break;
+	}
+	if (mlcpSolver)
+	{
+		return new btMLCPSolver(mlcpSolver);
+	}
+	return NULL;
+}
+
+void CPhysicsEnvironment::CreateEmptyDynamicsWorld()
+{
+	if(gBulletDynamicsWorldGuard)
+	{
+		gBulletDynamicsWorld = m_pBulletDynamicsWorld;
+	}
+	else
+	{
+		gBulletDynamicsWorldGuard = true;
+	}
 	
+	m_solverType = gSolverType;
+#ifdef BT_THREADSAFE
+	btAssert(btGetTaskScheduler() != NULL);
+	if (btGetTaskScheduler() != NULL && btGetTaskScheduler()->getNumThreads() > 1)
+	{
+		m_multithreadCapable = true;
+	}
+#endif
+	if (gMultithreadedWorld)
+	{
+#ifdef BT_THREADSAFE
+		m_pBulletDispatcher = NULL;
+		btDefaultCollisionConstructionInfo cci;
+		cci.m_defaultMaxPersistentManifoldPoolSize = 80000;
+		cci.m_defaultMaxCollisionAlgorithmPoolSize = 80000;
+		m_pBulletConfiguration = new btDefaultCollisionConfiguration(cci);
+
+		// TODO: Find out why MT dispatcher is broken
+		m_pBulletDispatcher = new btCollisionDispatcher(m_pBulletConfiguration/*, 40*/);
+		m_pBulletBroadphase = new btDbvtBroadphase();
+
+		btConstraintSolverPoolMt* solverPool;
+		{
+			SolverType poolSolverType = m_solverType;
+			if (poolSolverType == SOLVER_TYPE_SEQUENTIAL_IMPULSE_MT)
+			{
+				// pool solvers shouldn't be parallel solvers, we don't allow that kind of
+				// nested parallelism because of performance issues
+				poolSolverType = SOLVER_TYPE_SEQUENTIAL_IMPULSE;
+			}
+			btConstraintSolver* solvers[BT_MAX_THREAD_COUNT];
+			int maxThreadCount = BT_MAX_THREAD_COUNT;
+			for (int i = 0; i < maxThreadCount; ++i)
+			{
+				solvers[i] = createSolverByType(poolSolverType);
+			}
+			solverPool = new btConstraintSolverPoolMt(solvers, maxThreadCount);
+			m_pBulletSolver = solverPool;
+		}
+		btSequentialImpulseConstraintSolverMt* solverMt = NULL;
+		if (m_solverType == SOLVER_TYPE_SEQUENTIAL_IMPULSE_MT)
+		{
+			solverMt = new btSequentialImpulseConstraintSolverMt();
+		}
+		btDiscreteDynamicsWorld* world = new btDiscreteDynamicsWorldMt(m_pBulletDispatcher, m_pBulletBroadphase, solverPool, solverMt, m_pBulletConfiguration);
+		m_pBulletDynamicsWorld = world;
+		gBulletDynamicsWorld = world; // Also keep a static ref for ConVar callbacks
+		m_multithreadedWorld = true;
+		btAssert(btGetTaskScheduler() != NULL);
+#endif  // #if BT_THREADSAFE
+	}
+	else
+	{
+		// single threaded world
+		m_multithreadedWorld = false;
+
+		///collision configuration contains default setup for memory, collision setup
+		m_pBulletConfiguration = new btDefaultCollisionConfiguration();
+		//m_collisionConfiguration->setConvexConvexMultipointIterations();
+
+		///use the default collision dispatcher. For parallel processing you can use a diffent dispatcher (see Extras/BulletMultiThreaded)
+		m_pBulletDispatcher = new btCollisionDispatcher(m_pBulletConfiguration);
+
+		m_pBulletBroadphase = new btDbvtBroadphase();
+
+		SolverType solverType = m_solverType;
+		if (solverType == SOLVER_TYPE_SEQUENTIAL_IMPULSE_MT)
+		{
+			// using the parallel solver with the single-threaded world works, but is
+			// disabled here to avoid confusion
+			solverType = SOLVER_TYPE_SEQUENTIAL_IMPULSE;
+		}
+		m_pBulletSolver = createSolverByType(solverType);
+
+		m_pBulletDynamicsWorld = new btDiscreteDynamicsWorld(m_pBulletDispatcher, m_pBulletBroadphase, m_pBulletSolver, m_pBulletConfiguration);
+	}
+	m_pBulletDynamicsWorld->getSolverInfo().m_solverMode = gSolverMode;
+	m_pBulletDynamicsWorld->getSolverInfo().m_numIterations = cvar_solver_iterations.GetInt();
+
 	m_pBulletGhostCallback = new btGhostPairCallback;
 	m_pCollisionSolver = new CCollisionSolver(this);
-	m_pBulletEnvironment->getPairCache()->setOverlapFilterCallback(m_pCollisionSolver);
+	m_pBulletDynamicsWorld->getPairCache()->setOverlapFilterCallback(m_pCollisionSolver);
 	m_pBulletBroadphase->getOverlappingPairCache()->setInternalGhostPairCallback(m_pBulletGhostCallback);
 
 	m_pDeleteQueue = new CDeleteQueue;
@@ -553,24 +803,16 @@ CPhysicsEnvironment::CPhysicsEnvironment() {
 	m_perfparams.Defaults();
 	memset(&m_stats, 0, sizeof(m_stats));
 
-	// Soft body stuff
-	/*m_softBodyWorldInfo.m_broadphase = m_pBulletBroadphase;
-	m_softBodyWorldInfo.m_dispatcher = m_pBulletDispatcher;
-
-	m_softBodyWorldInfo.m_sparsesdf.Initialize();*/
-
-	m_pBulletEnvironment->getSolverInfo().m_solverMode |= SOLVER_SIMD;
-
 	// TODO: Threads solve any oversized batches (>32?), otherwise solving done on main thread.
-	m_pBulletEnvironment->getSolverInfo().m_minimumSolverBatchSize = 128; // Combine islands up to this many constraints
-	m_pBulletEnvironment->getDispatchInfo().m_allowedCcdPenetration = 0.0001f;
-	m_pBulletEnvironment->setApplySpeculativeContactRestitution(true);
+	m_pBulletDynamicsWorld->getSolverInfo().m_minimumSolverBatchSize = 128; // Combine islands up to this many constraints
+	m_pBulletDynamicsWorld->getDispatchInfo().m_allowedCcdPenetration = 0.0001f;
+	m_pBulletDynamicsWorld->setApplySpeculativeContactRestitution(true);
 	// m_pBulletEnvironment->getDispatchInfo().m_dispatchFunc = btDispatcherInfo::DISPATCH_CONTINUOUS;
 
 	//m_simPSIs = 0;
 	//m_invPSIscale = 0;
 
-	m_pBulletEnvironment->setInternalTickCallback(TickCallback, (void *)this);
+	m_pBulletDynamicsWorld->setInternalTickCallback(TickCallback, (void *)this);
 
 	// TODO: Rewrite solver callbacks
 	// m_pCollisionListener = new CCollisionEventListener(this);
@@ -586,48 +828,7 @@ CPhysicsEnvironment::CPhysicsEnvironment() {
 	CPhysicsEnvironment::SetDebugOverlay(engine);
 }
 
-CPhysicsEnvironment::~CPhysicsEnvironment() {
-#if DEBUG_DRAW
-	delete m_debugdraw;
-#endif
-	CPhysicsEnvironment::SetQuickDelete(true);
-
-	for (int i = m_objects.Count() - 1; i >= 0; --i) {
-		delete m_objects[i];
-	}
-
-	/*for (int i = m_softBodies.Count() - 1; i >= 0; --i) {
-		delete m_softBodies[i];
-	}*/
-
-	m_objects.RemoveAll();
-	// m_softBodies.RemoveAll();
-	CPhysicsEnvironment::CleanupDeleteList();
-
-	delete m_pDeleteQueue;
-	delete m_pPhysicsDragController;
-
-	delete m_pBulletEnvironment;
-	delete m_pBulletSolver;
-	delete m_pBulletBroadphase;
-	delete m_pBulletDispatcher;
-	delete m_pBulletConfiguration;
-	delete m_pBulletGhostCallback;
-
-	// delete m_pCollisionListener;
-	delete m_pCollisionSolver;
-	delete m_pObjectTracker;
-
-#ifdef BT_THREADSAFE
-	delete m_pThreadManager;
-#endif
-}
-
-void CPhysicsEnvironment::ChangeThreadCount(int newThreadCount) {
-	// Do nothing for now
-}
-
-// UNEXPOSED
+// Don't call this directly
 void CPhysicsEnvironment::TickCallback(btDynamicsWorld *world, btScalar timeStep) {
 	if (!world) return;
 
@@ -660,22 +861,18 @@ void CPhysicsEnvironment::SetGravity(const Vector &gravityVector) {
 	btVector3 temp;
 	ConvertPosToBull(gravityVector, temp);
 
-	m_pBulletEnvironment->setGravity(temp);
-	// m_softBodyWorldInfo.m_gravity = temp;
+	m_pBulletDynamicsWorld->setGravity(temp);
 }
 
 void CPhysicsEnvironment::GetGravity(Vector *pGravityVector) const {
 	if (!pGravityVector) return;
 
-	const btVector3 temp = m_pBulletEnvironment->getGravity();
+	const btVector3 temp = m_pBulletDynamicsWorld->getGravity();
 	ConvertPosToHL(temp, *pGravityVector);
 }
 
 void CPhysicsEnvironment::SetAirDensity(float density) {
 	m_pPhysicsDragController->SetAirDensity(density);
-
-	// Density is kg/in^3 from HL
-	// m_softBodyWorldInfo.air_density = density / CUBIC_METERS_PER_CUBIC_INCH;
 }
 
 float CPhysicsEnvironment::GetAirDensity() const {
@@ -717,51 +914,6 @@ void CPhysicsEnvironment::DestroyObject(IPhysicsObject *pObject) {
 	}
 }
 
-#if 0
-IPhysicsSoftBody *CPhysicsEnvironment::CreateSoftBody() {
-	CPhysicsSoftBody *pSoftBody = ::CreateSoftBody(this);
-	if (pSoftBody)
-		m_softBodies.AddToTail(pSoftBody);
-
-	return pSoftBody;
-}
-
-IPhysicsSoftBody *CPhysicsEnvironment::CreateSoftBodyFromVertices(const Vector *vertices, int numVertices, const softbodyparams_t *pParams) {
-	CPhysicsSoftBody *pSoftBody = ::CreateSoftBodyFromVertices(this, vertices, numVertices, pParams);
-	if (pSoftBody)
-		m_softBodies.AddToTail(pSoftBody);
-
-	return pSoftBody;
-}
-
-IPhysicsSoftBody *CPhysicsEnvironment::CreateSoftBodyRope(const Vector &pos, const Vector &end, int resolution, const softbodyparams_t *pParams) {
-	CPhysicsSoftBody *pSoftBody = ::CreateSoftBodyRope(this, pos, end, resolution, pParams);
-	if (pSoftBody)
-		m_softBodies.AddToTail(pSoftBody);
-
-	return pSoftBody;
-}
-
-IPhysicsSoftBody *CPhysicsEnvironment::CreateSoftBodyPatch(const Vector *corners, int resx, int resy, const softbodyparams_t *pParams) {
-	CPhysicsSoftBody *pSoftBody = ::CreateSoftBodyPatch(this, corners, resx, resy, pParams);
-	if (pSoftBody)
-		m_softBodies.AddToTail(pSoftBody);
-
-	return pSoftBody;
-}
-
-void CPhysicsEnvironment::DestroySoftBody(IPhysicsSoftBody *pSoftBody) {
-	if (!pSoftBody) return;
-
-	m_softBodies.FindAndRemove(pSoftBody);
-	
-	if (m_inSimulation || m_bUseDeleteQueue) {
-		m_pDeleteQueue->QueueForDelete(pSoftBody);
-	} else {
-		delete pSoftBody;
-	}
-}
-#endif
 IPhysicsFluidController *CPhysicsEnvironment::CreateFluidController(IPhysicsObject *pFluidObject, fluidparams_t *pParams) {
 	CPhysicsFluidController *pFluid = ::CreateFluidController(this, static_cast<CPhysicsObject*>(pFluidObject), pParams);
 	if (pFluid)
@@ -924,9 +1076,8 @@ void CPhysicsEnvironment::SetCollisionSolver(IPhysicsCollisionSolver *pSolver) {
 	m_pCollisionSolver->SetHandler(pSolver);
 }
 
-static ConVar cvar_substeps("vphysics_substeps", "4", FCVAR_REPLICATED, "Sets the amount of simulation substeps (higher number means higher precision)", true, 1, false, 0);
 void CPhysicsEnvironment::Simulate(float deltaTime) {
-	Assert(m_pBulletEnvironment);
+	Assert(m_pBulletDynamicsWorld);
 
 	// Input deltaTime is how many seconds have elapsed since the previous frame
 	// phys_timescale can scale this parameter however...
@@ -940,7 +1091,7 @@ void CPhysicsEnvironment::Simulate(float deltaTime) {
 	}
 
 	// sim PSI: How many substeps are done in a single simulation step
-	m_simPSI = cvar_substeps.GetInt() != 0 ? cvar_substeps.GetInt() : 1;
+	m_simPSI = cvar_world_substeps.GetInt() != 0 ? cvar_world_substeps.GetInt() : 1;
 	m_simPSICurrent = m_simPSI; // Substeps left in this step
 	m_numSubSteps = m_simPSI;
 	m_curSubStep = 0;
@@ -958,7 +1109,7 @@ void CPhysicsEnvironment::Simulate(float deltaTime) {
 		// Bullet will add the deltaTime to its internal counter
 		// When this internal counter exceeds m_timestep (param 3 to the below), the simulation will run for fixedTimeStep seconds
 		// If the internal counter does not exceed fixedTimeStep, bullet will just interpolate objects so the game can render them nice and happy
-		m_pBulletEnvironment->stepSimulation(deltaTime, 4, m_timestep, m_simPSICurrent);
+		m_pBulletDynamicsWorld->stepSimulation(deltaTime, 4, m_timestep, m_simPSICurrent);
 
 		// No longer in simulation!
 		m_inSimulation = false;
@@ -967,9 +1118,6 @@ void CPhysicsEnvironment::Simulate(float deltaTime) {
 #if DEBUG_DRAW
 	m_debugdraw->DrawWorld();
 #endif
-
-	// FIXME: See if this is even needed here
-	// m_softBodyWorldInfo.m_sparsesdf.GarbageCollect();
 }
 
 bool CPhysicsEnvironment::IsInSimulation() const {
@@ -1112,7 +1260,7 @@ void CPhysicsEnvironment::TraceRay(const Ray_t &ray, unsigned int fMask, IPhysic
 
 	// TODO: Override this class to use the mask and trace filter.
 	btCollisionWorld::ClosestRayResultCallback cb(vecStart, vecEnd);
-	m_pBulletEnvironment->rayTest(vecStart, vecEnd, cb);
+	m_pBulletDynamicsWorld->rayTest(vecStart, vecEnd, cb);
 
 	pTrace->fraction = cb.m_closestHitFraction;
 	ConvertPosToHL(cb.m_hitPointWorld, pTrace->endpos);
@@ -1171,7 +1319,7 @@ void CPhysicsEnvironment::SweepConvex(const CPhysConvex *pConvex, const Vector &
 	btConvexShape *pShape = (btConvexShape *)pConvex;
 
 	CFilteredConvexResultCallback cb(pTraceFilter, fMask, vecStart, vecEnd);
-	m_pBulletEnvironment->convexSweepTest(pShape, transStart, transEnd, cb, 0.0001f);
+	m_pBulletDynamicsWorld->convexSweepTest(pShape, transStart, transEnd, cb, 0.0001f);
 
 	pTrace->fraction = cb.m_closestHitFraction;
 	ConvertPosToHL(cb.m_hitPointWorld, pTrace->endpos);
@@ -1227,7 +1375,7 @@ void CPhysicsEnvironment::DebugCheckContacts() {
 // UNEXPOSED
 btDiscreteDynamicsWorld *CPhysicsEnvironment::GetBulletEnvironment() const
 {
-	return m_pBulletEnvironment;
+	return m_pBulletDynamicsWorld;
 }
 
 // UNEXPOSED
@@ -1301,9 +1449,9 @@ btVector3 CPhysicsEnvironment::GetMaxAngularVelocity() const {
 // FIXME: Remove this function and implement callbacks in bullet code
 void CPhysicsEnvironment::DoCollisionEvents(float dt) {
 	if (m_pCollisionEvent) {
-		const int numManifolds = m_pBulletEnvironment->getDispatcher()->getNumManifolds();
+		const int numManifolds = m_pBulletDynamicsWorld->getDispatcher()->getNumManifolds();
 		for (int i = 0; i < numManifolds; i++) {
-			btPersistentManifold *contactManifold = m_pBulletEnvironment->getDispatcher()->getManifoldByIndexInternal(i);
+			btPersistentManifold *contactManifold = m_pBulletDynamicsWorld->getDispatcher()->getManifoldByIndexInternal(i);
 			if (contactManifold->getNumContacts() <= 0)
 				continue;
 

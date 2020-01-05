@@ -29,9 +29,6 @@ class btConstraintSolverPoolMt;
 
 class CDebugDrawer;
 
-// Temporary; remove later
-class IPhysicsSoftBody;
-
 class CCollisionSolver : public btOverlapFilterCallback {
 	public:
 		CCollisionSolver(CPhysicsEnvironment *pEnv) {m_pEnv = pEnv; m_pSolver = NULL;}
@@ -44,16 +41,21 @@ class CCollisionSolver : public btOverlapFilterCallback {
 		CPhysicsEnvironment *m_pEnv;
 };
 
+enum SolverType
+{
+	SOLVER_TYPE_SEQUENTIAL_IMPULSE,
+	SOLVER_TYPE_SEQUENTIAL_IMPULSE_MT,
+	SOLVER_TYPE_NNCG,
+	SOLVER_TYPE_MLCP_PGS,
+	SOLVER_TYPE_MLCP_DANTZIG,
+	SOLVER_TYPE_MLCP_LEMKE,
+	SOLVER_TYPE_COUNT
+};
+
 class CPhysicsEnvironment : public IPhysicsEnvironment32 {
 public:
 	CPhysicsEnvironment();
 	~CPhysicsEnvironment();
-
-	void									ChangeThreadCount(int newCount);
-
-	// UNEXPOSED
-	// Don't call this directly!
-	static void								TickCallback(btDynamicsWorld *world, btScalar timestep);
 
 	void									SetDebugOverlay(CreateInterfaceFn debugOverlayFactory);
 	IVPhysicsDebugOverlay *					GetDebugOverlay();
@@ -70,12 +72,6 @@ public:
 	// Deprecated. Use the collision interface instead.
 	IPhysicsObject *						CreateSphereObject(float radius, int materialIndex, const Vector &position, const QAngle &angles, objectparams_t *pParams, bool isStatic = false);
 	void									DestroyObject(IPhysicsObject *pObject);
-
-	IPhysicsSoftBody *						CreateSoftBody();
-	IPhysicsSoftBody *						CreateSoftBodyFromVertices(const Vector *vertices, int numVertices, const softbodyparams_t *pParams);
-	IPhysicsSoftBody *						CreateSoftBodyRope(const Vector &pos, const Vector &end, int resolution, const softbodyparams_t *pParams);
-	IPhysicsSoftBody *						CreateSoftBodyPatch(const Vector *corners, int resx, int resy, const softbodyparams_t *pParams);
-	void									DestroySoftBody(IPhysicsSoftBody *pSoftBody);
 
 	IPhysicsFluidController	*				CreateFluidController(IPhysicsObject *pFluidObject, fluidparams_t *pParams);
 	void									DestroyFluidController(IPhysicsFluidController*);
@@ -112,7 +108,6 @@ public:
 
 	void									SetCollisionSolver(IPhysicsCollisionSolver *pSolver);
 
-	void									Simulate(float deltaTime);
 	bool									IsInSimulation() const;
 
 	float									GetSimulationTimestep() const;
@@ -172,7 +167,6 @@ public:
 	int										GetNumSubSteps() { return m_numSubSteps; }
 	int										GetCurSubStep() { return m_curSubStep; }
 
-	void									BulletTick(btScalar timeStep);
 	CPhysicsDragController *				GetDragController() const;
 	CCollisionSolver *						GetCollisionSolver() const;
 
@@ -181,18 +175,16 @@ public:
 	btVector3								GetMaxLinearVelocity() const;
 	btVector3								GetMaxAngularVelocity() const;
 
-	void									DoCollisionEvents(float dt);
-
 	void									HandleConstraintBroken(CPhysicsConstraint *pConstraint) const; // Call this if you're a constraint that was just disabled/broken.
 	void									HandleFluidStartTouch(CPhysicsFluidController *pController, CPhysicsObject *pObject) const;
 	void									HandleFluidEndTouch(CPhysicsFluidController *pController, CPhysicsObject *pObject) const;
 	void									HandleObjectEnteredTrigger(CPhysicsObject *pTrigger, CPhysicsObject *pObject) const;
 	void									HandleObjectExitedTrigger(CPhysicsObject *pTrigger, CPhysicsObject *pObject) const;
 
-	// btSoftBodyWorldInfo &				GetSoftBodyWorldInfo() { return m_softBodyWorldInfo; }
-
-	// Soft body functions we'll expose at a later time...
 private:
+	SolverType								m_solverType;
+	bool									m_multithreadedWorld;
+	bool									m_multithreadCapable;
 	bool									m_inSimulation;
 	bool									m_bUseDeleteQueue;
 	bool									m_bConstraintNotify;
@@ -201,26 +193,24 @@ private:
 	float									m_invPSIScale;
 	int										m_simPSICurrent;
 	int										m_simPSI;
-	int										m_numSubSteps{};
-	int										m_curSubStep{};
-	float									m_subStepTime{};
+	int										m_numSubSteps;
+	int										m_curSubStep;
+	float									m_subStepTime;
 
 	btCollisionConfiguration *				m_pBulletConfiguration;
 	btCollisionDispatcher *					m_pBulletDispatcher;
 	btBroadphaseInterface *					m_pBulletBroadphase;
 	btConstraintSolver *					m_pBulletSolver;
-	btDiscreteDynamicsWorld *				m_pBulletEnvironment;
+	btDiscreteDynamicsWorld *				m_pBulletDynamicsWorld;
 	btOverlappingPairCallback *				m_pBulletGhostCallback;
-	// btSoftBodyWorldInfo					m_softBodyWorldInfo;
 
 	CUtlVector<IPhysicsObject *>			m_objects;
 	CUtlVector<IPhysicsObject *>			m_deadObjects;
-	
-	// CUtlVector<IPhysicsSoftBody *>		m_softBodies;
+
 	CUtlVector<CPhysicsFluidController *>	m_fluids;
 	CUtlVector<IController *>				m_controllers;
 
-	CCollisionEventListener *				m_pCollisionListener{};
+	CCollisionEventListener *				m_pCollisionListener;
 	CCollisionSolver *						m_pCollisionSolver;
 	CDeleteQueue *							m_pDeleteQueue;
 	CObjectTracker *						m_pObjectTracker;
@@ -231,12 +221,19 @@ private:
 	IPhysicsConstraintEvent *				m_pConstraintEvent;
 	IPhysicsObjectEvent *					m_pObjectEvent;
 
-	physics_performanceparams_t				m_perfparams{};
-	physics_stats_t							m_stats{};
+	physics_performanceparams_t				m_perfparams;
+	physics_stats_t							m_stats;
 
-	CDebugDrawer *							m_debugdraw{};
+	CDebugDrawer *							m_debugdraw;
 
 	CPhysThreadManager*						m_pThreadManager;
+
+private:
+	static void								TickCallback(btDynamicsWorld *world, btScalar timestep);
+	void									BulletTick(btScalar timeStep);
+	void									DoCollisionEvents(float dt);
+	void									Simulate(float deltaTime);
+	void									CreateEmptyDynamicsWorld();
 };
 
 #endif // PHYSICS_ENVIRONMENT_H

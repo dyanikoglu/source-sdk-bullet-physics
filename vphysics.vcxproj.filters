@@ -172,9 +172,6 @@
     <ClInclude Include="include\vphysics\softbodyV32.h">
       <Filter>Header Files\public</Filter>
     </ClInclude>
-    <ClInclude Include="src\Physics_Multithreading.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="src\vphysics.rc" />
