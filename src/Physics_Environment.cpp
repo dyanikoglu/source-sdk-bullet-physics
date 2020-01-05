@@ -812,13 +812,10 @@ void CPhysicsEnvironment::CreateEmptyDynamicsWorld()
 	//m_simPSIs = 0;
 	//m_invPSIscale = 0;
 
+	m_pCollisionListener = new CCollisionEventListener(this);
+	m_pBulletSolver->setSolveCallback(m_pCollisionListener);
+	
 	m_pBulletDynamicsWorld->setInternalTickCallback(TickCallback, (void *)this);
-
-	// TODO: Rewrite solver callbacks
-	// m_pCollisionListener = new CCollisionEventListener(this);
-	// m_pBulletSolver->setSolveCallback(m_pCollisionListener);
-	// m_pThreadManager->GetConstraintSolverPool()->setSolveCallback(m_pCollisionListener);
-
 #if DEBUG_DRAW
 	m_debugdraw = new CDebugDrawer(m_pBulletEnvironment);
 #endif
@@ -1147,8 +1144,7 @@ float CPhysicsEnvironment::GetNextFrameTime() const {
 }
 
 void CPhysicsEnvironment::SetCollisionEventHandler(IPhysicsCollisionEvent *pCollisionEvents) {
-	// TODO
-	// m_pCollisionListener->SetCollisionEventCallback(pCollisionEvents);
+	m_pCollisionListener->SetCollisionEventCallback(pCollisionEvents);
 	m_pCollisionEvent = pCollisionEvents;
 }
 
