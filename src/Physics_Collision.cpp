@@ -17,8 +17,8 @@
 
 #define COLLISION_MARGIN 0.015 // 15 mm
 
-// Use btConvexTriangleMeshShape instead of btConvexHullShape?
-#define USE_CONVEX_TRIANGLES
+// TODO: Use btConvexTriangleMeshShape instead of btConvexHullShape? btw we shouldn't use btConvexTriangleMeshShape, it's not performance friendly
+// #define USE_CONVEX_TRIANGLES
 
 // lol hack
 extern IVPhysicsDebugOverlay *g_pDebugOverlay;
