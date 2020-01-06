@@ -29,6 +29,7 @@
 #include "BulletDynamics/ConstraintSolver/btNNCGConstraintSolver.h"
 #include "BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolverMt.h"
 #include "BulletDynamics/Dynamics/btDiscreteDynamicsWorldMt.h"
+#include "BulletCollision/CollisionDispatch/btCollisionDispatcherMt.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -236,8 +237,11 @@ class CObjectTracker {
 							case ACTIVE_TAG:
 								m_pObjEvents->ObjectWake(pObj);
 								break;
-							case ISLAND_SLEEPING: // Don't call ObjectSleep on DISABLE_SIMULATION on purpose.
+							case ISLAND_SLEEPING:
 								m_pObjEvents->ObjectSleep(pObj);
+								break;
+							case DISABLE_SIMULATION:
+								// Don't call ObjectSleep on DISABLE_SIMULATION on purpose.
 								break;
 							default:
 								NOT_IMPLEMENTED;
@@ -822,7 +826,7 @@ void CPhysicsEnvironment::CreateEmptyDynamicsWorld()
 	// m_pThreadManager->GetConstraintSolverPool()->setSolveCallback(m_pCollisionListener);
 
 #if DEBUG_DRAW
-	m_debugdraw = new CDebugDrawer(m_pBulletEnvironment);
+	m_debugdraw = new CDebugDrawer(m_pBulletDynamicsWorld);
 #endif
 
 	// HACK: Get ourselves a debug overlay on the client
