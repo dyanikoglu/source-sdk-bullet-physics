@@ -550,7 +550,7 @@ static ConVar cvar_world_substeps("bt_world_substeps", "1", FCVAR_REPLICATED, "T
 
 // bt_threadcount
 static void cvar_threadcount_Change(IConVar *var, const char *pOldValue, float flOldValue);
-static ConVar cvar_threadcount("bt_threadcount", "1", FCVAR_REPLICATED, "Number of cores utilized by bullet task scheduler. By default, TBB sets this to optimal value", true, 1, true, BT_MAX_THREAD_COUNT, cvar_threadcount_Change);
+static ConVar cvar_threadcount("bt_threadcount", "1", FCVAR_REPLICATED, "Number of cores utilized by bullet task scheduler. By default, TBB sets this to optimal value", true, 1, true, static_cast<int>(BT_MAX_THREAD_COUNT), cvar_threadcount_Change);
 static void cvar_threadcount_Change(IConVar *var, const char *pOldValue, float flOldValue)
 {
 	const int newNumThreads = min(cvar_threadcount.GetInt(), int(BT_MAX_THREAD_COUNT));
@@ -703,6 +703,7 @@ btConstraintSolver* createSolverByType(SolverType t)
 
 void CPhysicsEnvironment::CreateEmptyDynamicsWorld()
 {
+	// TODO: Find better way for this hack
 	if(gBulletDynamicsWorldGuard)
 	{
 		gBulletDynamicsWorld = m_pBulletDynamicsWorld;
@@ -713,81 +714,82 @@ void CPhysicsEnvironment::CreateEmptyDynamicsWorld()
 	}
 	
 	m_solverType = gSolverType;
+	
 #ifdef BT_THREADSAFE
 	btAssert(btGetTaskScheduler() != NULL);
 	if (btGetTaskScheduler() != NULL && btGetTaskScheduler()->getNumThreads() > 1)
 	{
 		m_multithreadCapable = true;
 	}
-#endif
-	if (gMultithreadedWorld)
+	
+	btDefaultCollisionConstructionInfo cci;
+	cci.m_defaultMaxPersistentManifoldPoolSize = 80000;
+	cci.m_defaultMaxCollisionAlgorithmPoolSize = 80000;
+	m_pBulletConfiguration = new btDefaultCollisionConfiguration(cci);
+
+	// TODO: Find out why MT dispatcher is broken
+	m_pBulletDispatcher = new btCollisionDispatcher/*Mt*/(m_pBulletConfiguration/*, 40*/);
+	
+	m_pBulletBroadphase = new btDbvtBroadphase();
+	// Enable deferred collide, increases performance with many collisions calculations going on at the same time
+	dynamic_cast<btDbvtBroadphase*>(m_pBulletBroadphase)->m_deferedcollide = true;
+
+	btConstraintSolverPoolMt* solverPool;
 	{
-#ifdef BT_THREADSAFE
-		m_pBulletDispatcher = NULL;
-		btDefaultCollisionConstructionInfo cci;
-		cci.m_defaultMaxPersistentManifoldPoolSize = 80000;
-		cci.m_defaultMaxCollisionAlgorithmPoolSize = 80000;
-		m_pBulletConfiguration = new btDefaultCollisionConfiguration(cci);
-
-		// TODO: Find out why MT dispatcher is broken
-		m_pBulletDispatcher = new btCollisionDispatcher(m_pBulletConfiguration/*, 40*/);
-		m_pBulletBroadphase = new btDbvtBroadphase();
-
-		btConstraintSolverPoolMt* solverPool;
+		SolverType poolSolverType = m_solverType;
+		if (poolSolverType == SOLVER_TYPE_SEQUENTIAL_IMPULSE_MT)
 		{
-			SolverType poolSolverType = m_solverType;
-			if (poolSolverType == SOLVER_TYPE_SEQUENTIAL_IMPULSE_MT)
-			{
-				// pool solvers shouldn't be parallel solvers, we don't allow that kind of
-				// nested parallelism because of performance issues
-				poolSolverType = SOLVER_TYPE_SEQUENTIAL_IMPULSE;
-			}
-			btConstraintSolver* solvers[BT_MAX_THREAD_COUNT];
-			int maxThreadCount = BT_MAX_THREAD_COUNT;
-			for (int i = 0; i < maxThreadCount; ++i)
-			{
-				solvers[i] = createSolverByType(poolSolverType);
-			}
-			solverPool = new btConstraintSolverPoolMt(solvers, maxThreadCount);
-			m_pBulletSolver = solverPool;
+			// pool solvers shouldn't be parallel solvers, we don't allow that kind of
+			// nested parallelism because of performance issues
+			poolSolverType = SOLVER_TYPE_SEQUENTIAL_IMPULSE;
 		}
-		btSequentialImpulseConstraintSolverMt* solverMt = NULL;
-		if (m_solverType == SOLVER_TYPE_SEQUENTIAL_IMPULSE_MT)
+		btConstraintSolver* solvers[BT_MAX_THREAD_COUNT];
+		const int maxThreadCount = BT_MAX_THREAD_COUNT;
+		for (auto& solver : solvers)
 		{
-			solverMt = new btSequentialImpulseConstraintSolverMt();
+			solver = createSolverByType(poolSolverType);
 		}
-		btDiscreteDynamicsWorld* world = new btDiscreteDynamicsWorldMt(m_pBulletDispatcher, m_pBulletBroadphase, solverPool, solverMt, m_pBulletConfiguration);
-		m_pBulletDynamicsWorld = world;
-		gBulletDynamicsWorld = world; // Also keep a static ref for ConVar callbacks
-		m_multithreadedWorld = true;
-		btAssert(btGetTaskScheduler() != NULL);
-#endif  // #if BT_THREADSAFE
+		solverPool = new btConstraintSolverPoolMt(solvers, maxThreadCount);
+		m_pBulletSolver = solverPool;
 	}
-	else
+	btSequentialImpulseConstraintSolverMt* solverMt = NULL;
+	if (m_solverType == SOLVER_TYPE_SEQUENTIAL_IMPULSE_MT)
 	{
-		// single threaded world
-		m_multithreadedWorld = false;
-
-		///collision configuration contains default setup for memory, collision setup
-		m_pBulletConfiguration = new btDefaultCollisionConfiguration();
-		//m_collisionConfiguration->setConvexConvexMultipointIterations();
-
-		///use the default collision dispatcher. For parallel processing you can use a diffent dispatcher (see Extras/BulletMultiThreaded)
-		m_pBulletDispatcher = new btCollisionDispatcher(m_pBulletConfiguration);
-
-		m_pBulletBroadphase = new btDbvtBroadphase();
-
-		SolverType solverType = m_solverType;
-		if (solverType == SOLVER_TYPE_SEQUENTIAL_IMPULSE_MT)
-		{
-			// using the parallel solver with the single-threaded world works, but is
-			// disabled here to avoid confusion
-			solverType = SOLVER_TYPE_SEQUENTIAL_IMPULSE;
-		}
-		m_pBulletSolver = createSolverByType(solverType);
-
-		m_pBulletDynamicsWorld = new btDiscreteDynamicsWorld(m_pBulletDispatcher, m_pBulletBroadphase, m_pBulletSolver, m_pBulletConfiguration);
+		solverMt = new btSequentialImpulseConstraintSolverMt();
 	}
+	m_pBulletDynamicsWorld = new btDiscreteDynamicsWorldMt(m_pBulletDispatcher, m_pBulletBroadphase, solverPool, solverMt, m_pBulletConfiguration);
+	gBulletDynamicsWorld = m_pBulletDynamicsWorld; // TODO: This is not a nice way to do that
+
+	// TODO: See how well this works for static objects, their aabb trees might not be updated because of this optimization
+	m_pBulletDynamicsWorld->setForceUpdateAllAabbs(false);
+	
+	m_multithreadedWorld = true;
+	btAssert(btGetTaskScheduler() != NULL);
+#else
+	// single threaded world
+	m_multithreadedWorld = false;
+
+	///collision configuration contains default setup for memory, collision setup
+	m_pBulletConfiguration = new btDefaultCollisionConfiguration();
+	//m_collisionConfiguration->setConvexConvexMultipointIterations();
+
+	///use the default collision dispatcher. For parallel processing you can use a diffent dispatcher (see Extras/BulletMultiThreaded)
+	m_pBulletDispatcher = new btCollisionDispatcher(m_pBulletConfiguration);
+
+	m_pBulletBroadphase = new btDbvtBroadphase();
+
+	SolverType solverType = m_solverType;
+	if (solverType == SOLVER_TYPE_SEQUENTIAL_IMPULSE_MT)
+	{
+		// using the parallel solver with the single-threaded world works, but is
+		// disabled here to avoid confusion
+		solverType = SOLVER_TYPE_SEQUENTIAL_IMPULSE;
+	}
+	m_pBulletSolver = createSolverByType(solverType);
+
+	m_pBulletDynamicsWorld = new btDiscreteDynamicsWorld(m_pBulletDispatcher, m_pBulletBroadphase, m_pBulletSolver, m_pBulletConfiguration);
+#endif // #if BT_THREADSAFE
+
 	m_pBulletDynamicsWorld->getSolverInfo().m_solverMode = gSolverMode;
 	m_pBulletDynamicsWorld->getSolverInfo().m_numIterations = cvar_solver_iterations.GetInt();
 
@@ -812,7 +814,7 @@ void CPhysicsEnvironment::CreateEmptyDynamicsWorld()
 	//m_simPSIs = 0;
 	//m_invPSIscale = 0;
 
-	m_pBulletDynamicsWorld->setInternalTickCallback(TickCallback, (void *)this);
+	m_pBulletDynamicsWorld->setInternalTickCallback(TickCallback, static_cast<void*>(this));
 
 	// TODO: Rewrite solver callbacks
 	// m_pCollisionListener = new CCollisionEventListener(this);
