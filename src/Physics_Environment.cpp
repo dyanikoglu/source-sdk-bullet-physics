@@ -733,8 +733,7 @@ void CPhysicsEnvironment::CreateEmptyDynamicsWorld()
 		cci.m_defaultMaxCollisionAlgorithmPoolSize = 80000;
 		m_pBulletConfiguration = new btDefaultCollisionConfiguration(cci);
 
-		// TODO: Find out why MT dispatcher is broken
-		m_pBulletDispatcher = new btCollisionDispatcher(m_pBulletConfiguration/*, 40*/);
+		m_pBulletDispatcher = new btCollisionDispatcherMt(m_pBulletConfiguration, 40);
 		m_pBulletBroadphase = new btDbvtBroadphase();
 
 		btConstraintSolverPoolMt* solverPool;
