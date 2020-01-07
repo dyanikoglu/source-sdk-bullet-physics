@@ -736,6 +736,9 @@ void CPhysicsEnvironment::CreateEmptyDynamicsWorld()
 		m_pBulletDispatcher = new btCollisionDispatcherMt(m_pBulletConfiguration, 40);
 		m_pBulletBroadphase = new btDbvtBroadphase();
 
+		// Enable deferred collide, increases performance with many collisions calculations going on at the same time
+		static_cast<btDbvtBroadphase*>(m_pBulletBroadphase)->m_deferedcollide = true;
+
 		btConstraintSolverPoolMt* solverPool;
 		{
 			SolverType poolSolverType = m_solverType;
@@ -764,6 +767,9 @@ void CPhysicsEnvironment::CreateEmptyDynamicsWorld()
 		gBulletDynamicsWorld = world; // Also keep a static ref for ConVar callbacks
 		m_multithreadedWorld = true;
 		btAssert(btGetTaskScheduler() != NULL);
+
+		// TODO: See how well this works for static objects, their aabb trees might not be updated because of this optimization
+		m_pBulletDynamicsWorld->setForceUpdateAllAabbs(false);
 #endif  // #if BT_THREADSAFE
 	}
 	else
@@ -793,7 +799,7 @@ void CPhysicsEnvironment::CreateEmptyDynamicsWorld()
 	}
 	m_pBulletDynamicsWorld->getSolverInfo().m_solverMode = gSolverMode;
 	m_pBulletDynamicsWorld->getSolverInfo().m_numIterations = cvar_solver_iterations.GetInt();
-
+	
 	m_pBulletGhostCallback = new btGhostPairCallback;
 	m_pCollisionSolver = new CCollisionSolver(this);
 	m_pBulletDynamicsWorld->getPairCache()->setOverlapFilterCallback(m_pCollisionSolver);
