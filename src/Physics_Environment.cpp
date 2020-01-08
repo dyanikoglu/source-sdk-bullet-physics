@@ -515,8 +515,8 @@ static bool gMultithreadedWorld = false;
 static SolverType gSolverType = SOLVER_TYPE_SEQUENTIAL_IMPULSE;
 #endif
 
-static int gSolverMode = SOLVER_USE_WARMSTARTING |
-	/*SOLVER_SIMD | SOLVER_RANDMIZE_ORDER | SOLVER_INTERLEAVE_CONTACT_AND_FRICTION_CONSTRAINTS | SOLVER_USE_2_FRICTION_DIRECTIONS |*/ 0;
+static int gSolverMode = SOLVER_SIMD | SOLVER_USE_WARMSTARTING |
+	/* SOLVER_RANDMIZE_ORDER | SOLVER_INTERLEAVE_CONTACT_AND_FRICTION_CONSTRAINTS | SOLVER_USE_2_FRICTION_DIRECTIONS |*/ 0;
 
 /*******************************
 * Bullet Dynamics World ConVars
@@ -524,7 +524,7 @@ static int gSolverMode = SOLVER_USE_WARMSTARTING |
 
 // bt_solveriterations
 static void cvar_solver_iterations_Change(IConVar *var, const char *pOldValue, float flOldValue);
-static ConVar cvar_solver_iterations("bt_solver_iterations", "4", FCVAR_REPLICATED, "Number of collision solver iterations", true, 1, true, 32, cvar_solver_iterations_Change);
+static ConVar cvar_solver_iterations("bt_solver_iterations", "10", FCVAR_REPLICATED, "Number of collision solver iterations", true, 1, true, 32, cvar_solver_iterations_Change);
 static void cvar_solver_iterations_Change(IConVar *var, const char *pOldValue, float flOldValue)
 {
 	if(gBulletDynamicsWorld)
@@ -729,13 +729,16 @@ void CPhysicsEnvironment::CreateEmptyDynamicsWorld()
 	if (gMultithreadedWorld)
 	{
 #ifdef BT_THREADSAFE
+		btAssert(btGetTaskScheduler() != NULL);
+
 		m_pBulletDispatcher = NULL;
 		btDefaultCollisionConstructionInfo cci;
 		cci.m_defaultMaxPersistentManifoldPoolSize = 80000;
 		cci.m_defaultMaxCollisionAlgorithmPoolSize = 80000;
 		m_pBulletConfiguration = new btDefaultCollisionConfiguration(cci);
 
-		m_pBulletDispatcher = new btCollisionDispatcherMt(m_pBulletConfiguration, 40);
+		// Dispatcher generates around 360 pair objects on average. Maximize thread usage by using this value
+		m_pBulletDispatcher = new btCollisionDispatcherMt(m_pBulletConfiguration, 360 / cvar_threadcount.GetInt() + 1);
 		m_pBulletBroadphase = new btDbvtBroadphase();
 
 		// Enable deferred collide, increases performance with many collisions calculations going on at the same time
@@ -750,13 +753,13 @@ void CPhysicsEnvironment::CreateEmptyDynamicsWorld()
 				// nested parallelism because of performance issues
 				poolSolverType = SOLVER_TYPE_SEQUENTIAL_IMPULSE;
 			}
-			btConstraintSolver* solvers[BT_MAX_THREAD_COUNT];
-			int maxThreadCount = BT_MAX_THREAD_COUNT;
-			for (int i = 0; i < maxThreadCount; ++i)
+			CUtlVector<btConstraintSolver*> solvers;
+			const int threadCount = cvar_threadcount.GetInt();
+			for (int i = 0; i < threadCount; ++i)
 			{
-				solvers[i] = createSolverByType(poolSolverType);
+				solvers.AddToTail(createSolverByType(poolSolverType));
 			}
-			solverPool = new btConstraintSolverPoolMt(solvers, maxThreadCount);
+			solverPool = new btConstraintSolverPoolMt(solvers.Base(), threadCount);
 			m_pBulletSolver = solverPool;
 		}
 		btSequentialImpulseConstraintSolverMt* solverMt = NULL;
@@ -766,12 +769,10 @@ void CPhysicsEnvironment::CreateEmptyDynamicsWorld()
 		}
 		btDiscreteDynamicsWorld* world = new btDiscreteDynamicsWorldMt(m_pBulletDispatcher, m_pBulletBroadphase, solverPool, solverMt, m_pBulletConfiguration);
 		m_pBulletDynamicsWorld = world;
+		m_pBulletDynamicsWorld->setForceUpdateAllAabbs(false);
+		
 		gBulletDynamicsWorld = world; // Also keep a static ref for ConVar callbacks
 		m_multithreadedWorld = true;
-		btAssert(btGetTaskScheduler() != NULL);
-
-		// TODO: See how well this works for static objects, their aabb trees might not be updated because of this optimization
-		m_pBulletDynamicsWorld->setForceUpdateAllAabbs(false);
 #endif  // #if BT_THREADSAFE
 	}
 	else
