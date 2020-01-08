@@ -635,13 +635,15 @@ CPhysicsEnvironment::CPhysicsEnvironment() {
 	m_simPSICurrent = 0;
 	m_simPSI = 0;
 
+#ifdef BT_THREADSAFE
 	// Initilize task scheduler, we will be using TBB
 	// btSetTaskScheduler(btGetSequentialTaskScheduler()); // Can be used for debugging purposes
 	btSetTaskScheduler(btGetTBBTaskScheduler());
 	const int maxNumThreads = btGetTBBTaskScheduler()->getMaxNumThreads();
 	btGetTBBTaskScheduler()->setNumThreads(maxNumThreads);
 	cvar_threadcount.SetValue(maxNumThreads);
-
+#endif
+	
 	// Create a fresh new dynamics world
 	CreateEmptyDynamicsWorld();
 }
