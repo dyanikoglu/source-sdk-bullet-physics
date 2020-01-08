@@ -554,7 +554,7 @@ static ConVar cvar_world_substeps("bt_world_substeps", "1", FCVAR_REPLICATED, "T
 
 // bt_threadcount
 static void cvar_threadcount_Change(IConVar *var, const char *pOldValue, float flOldValue);
-static ConVar cvar_threadcount("bt_threadcount", "1", FCVAR_REPLICATED, "Number of cores utilized by bullet task scheduler. By default, TBB sets this to optimal value", true, 1, true, BT_MAX_THREAD_COUNT, cvar_threadcount_Change);
+static ConVar cvar_threadcount("bt_threadcount", "1", FCVAR_REPLICATED, "Number of cores utilized by bullet task scheduler. By default, TBB sets this to optimal value", true, 1, true, static_cast<float>(BT_MAX_THREAD_COUNT), cvar_threadcount_Change);
 static void cvar_threadcount_Change(IConVar *var, const char *pOldValue, float flOldValue)
 {
 	const int newNumThreads = min(cvar_threadcount.GetInt(), int(BT_MAX_THREAD_COUNT));
