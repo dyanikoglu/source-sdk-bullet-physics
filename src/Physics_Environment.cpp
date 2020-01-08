@@ -547,7 +547,7 @@ static void cvar_solver_residualthreshold_Change(IConVar *var, const char *pOldV
 }
 
 // bt_substeps
-static ConVar cvar_world_substeps("bt_world_substeps", "1", FCVAR_REPLICATED, "The amount of simulation substeps (higher number means higher precision)", true, 1, true, 8);
+static ConVar cvar_world_substeps("bt_world_substeps", "2", FCVAR_REPLICATED, "The amount of simulation substeps (higher number means higher precision)", true, 1, true, 8);
 
 // Threadsafe specific console variables
 #ifdef BT_THREADSAFE
@@ -816,7 +816,7 @@ void CPhysicsEnvironment::CreateEmptyDynamicsWorld()
 	m_pBulletDynamicsWorld->getSolverInfo().m_minimumSolverBatchSize = 128; // Combine islands up to this many constraints
 	m_pBulletDynamicsWorld->getDispatchInfo().m_allowedCcdPenetration = 0.0001f;
 	m_pBulletDynamicsWorld->setApplySpeculativeContactRestitution(true);
-	// m_pBulletEnvironment->getDispatchInfo().m_dispatchFunc = btDispatcherInfo::DISPATCH_CONTINUOUS;
+	// m_pBulletDynamicsWorld->getDispatchInfo().m_dispatchFunc = btDispatcherInfo::DISPATCH_CONTINUOUS;
 
 	//m_simPSIs = 0;
 	//m_invPSIscale = 0;
@@ -1118,7 +1118,7 @@ void CPhysicsEnvironment::Simulate(float deltaTime) {
 		// Bullet will add the deltaTime to its internal counter
 		// When this internal counter exceeds m_timestep (param 3 to the below), the simulation will run for fixedTimeStep seconds
 		// If the internal counter does not exceed fixedTimeStep, bullet will just interpolate objects so the game can render them nice and happy
-		m_pBulletDynamicsWorld->stepSimulation(deltaTime, 4, m_timestep, m_simPSICurrent);
+		m_pBulletDynamicsWorld->stepSimulation(deltaTime, cvar_world_substeps.GetInt(), m_timestep, m_simPSICurrent);
 
 		// No longer in simulation!
 		m_inSimulation = false;
