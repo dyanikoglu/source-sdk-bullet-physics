@@ -15,7 +15,7 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-#define COLLISION_MARGIN 0.015 // 15 mm
+#define COLLISION_MARGIN 0.005 // 5 mm
 
 // TODO: Use btConvexTriangleMeshShape instead of btConvexHullShape? btw we shouldn't use btConvexTriangleMeshShape, it's not performance friendly
 // #define USE_CONVEX_TRIANGLES
@@ -1223,6 +1223,10 @@ bool CPhysicsCollision::IsBoxIntersectingCone(const Vector &boxAbsMins, const Ve
 	return false;
 }
 
+static int IndiceCompareFunc (const uint16 * a, const uint16 * b) {
+   return ( *a - *b );
+}
+
 static btConvexShape *LedgeToConvex(const ivpcompactledge_t *ledge) {
 	btConvexShape *pConvexOut = NULL;
 
@@ -1285,7 +1289,7 @@ static btConvexShape *LedgeToConvex(const ivpcompactledge_t *ledge) {
 		pConvexOut = pShape;
 #else
 		btConvexHullShape *pConvex = new btConvexHullShape;
-		pConvex->setMargin(COLLISION_MARGIN);
+		pConvex->setMargin(CONVEX_DISTANCE_MARGIN);
 
 		const ivpcompacttriangle_t *tris = (ivpcompacttriangle_t *)(ledge + 1);
 
@@ -1294,27 +1298,37 @@ static btConvexShape *LedgeToConvex(const ivpcompactledge_t *ledge) {
 		// If you find a better way you can replace this!
 		CUtlVector<uint16> indices;
 
-		for (int j = 0; j < ledge->n_triangles; j++) {
+		// Create vector of indices
+		for (int j = 0; j < ledge->n_triangles; j++) 
+		{
 			Assert((uint)j == tris[j].tri_index); // Sanity check
-
-			for (int k = 0; k < 3; k++) {
-				uint16 index = tris[j].c_three_edges[k].start_point_index;
-
-				if (indices.Find(index) == -1) {
-					indices.AddToTail(index);
-				}
+			for (int k = 0; k < 3; k++) 
+			{
+				indices.AddToTail(tris[j].c_three_edges[k].start_point_index);
 			}
 		}
 
-		for (int j = 0; j < indices.Count(); j++) {
-			uint16 index = indices[j];
+		// Sort the indices
+		indices.Sort(IndiceCompareFunc);
 
+		for (int j = 0; j < indices.Count(); j++) 
+		{
+			if(j + 1 != indices.Count() && indices[j] == indices[j+1])
+			{
+				// Do not add duplicate indices into result
+				continue;
+			}
+			
+			uint16 index = indices[j];
 			float *ivpvert = (float *)(vertices + index * 16); // 16 is sizeof(ivp aligned vector)
 
 			btVector3 vertex;
 			ConvertIVPPosToBull(ivpvert, vertex);
 			pConvex->addPoint(vertex);
 		}
+
+		// TODO: Should we optimize the convex hull?
+		pConvex->optimizeConvexHull();
 
 		pConvexOut = pConvex;
 #endif
@@ -1608,17 +1622,17 @@ CPhysCollide *CPhysicsCollision::CreateVirtualMesh(const virtualmeshparams_t &pa
 	mesh.m_numVertices = list.vertexCount;
 	mesh.m_numTriangles = list.triangleCount;
 
-	// Copy the array (because this is needed to exist for the lifetime of the triangle)
-	unsigned short *indexArray = new unsigned short[list.indexCount];
-	mesh.m_triangleIndexBase = (unsigned char *)indexArray;
-	mesh.m_triangleIndexStride = 3 * sizeof(unsigned short);
-
-	for (int i = 0; i < list.indexCount; i++) {
-		indexArray[i] = list.indices[i];
+	if(list.indexCount > 0)
+	{
+		// Copy the array, if we have indices (because this is needed to exist for the lifetime of the triangle)
+		unsigned short *indexArray = new unsigned short[list.indexCount];
+		mesh.m_triangleIndexBase = reinterpret_cast<unsigned char*>(indexArray);
+		mesh.m_triangleIndexStride = 3 * sizeof(unsigned short);
+		memcpy(indexArray, list.indices, sizeof(unsigned short) * list.indexCount);
 	}
 
 	btVector3 *vertexArray = new btVector3[list.vertexCount];
-	mesh.m_vertexBase = (unsigned char *)vertexArray;
+	mesh.m_vertexBase = reinterpret_cast<unsigned char*>(vertexArray);
 	mesh.m_vertexStride = sizeof(btVector3);
 
 	for (int i = 0; i < list.vertexCount; i++) {
@@ -1628,12 +1642,15 @@ CPhysCollide *CPhysicsCollision::CreateVirtualMesh(const virtualmeshparams_t &pa
 	pArray->addIndexedMesh(mesh, PHY_SHORT);
 
 	btBvhTriangleMeshShape *bull = new btBvhTriangleMeshShape(pArray, true);
-	bull->setMargin(COLLISION_MARGIN);
+	bull->setMargin(COLLISION_MARGIN* 10);
 
 	btTriangleInfoMap *pMap = new btTriangleInfoMap;
+
 	btGenerateInternalEdgeInfo(bull, pMap);
 
-	return new CPhysCollide(bull);
+	btScaledBvhTriangleMeshShape* res = new btScaledBvhTriangleMeshShape(bull, btVector3(1,1,1));
+
+	return new CPhysCollide(res);
 }
 
 bool CPhysicsCollision::SupportsVirtualMesh() {

@@ -1155,8 +1155,8 @@ void CPhysicsObject::Init(CPhysicsEnvironment *pEnv, btRigidBody *pObject, int m
 		float minradius = min(min(mins.getX(), mins.getY()), mins.getZ());
 		float radius = min(maxradius, minradius);
 
-		m_pObject->setCcdMotionThreshold((radius / 2) * (radius / 2));
-		m_pObject->setCcdSweptSphereRadius(0.7f * radius);
+		m_pObject->setCcdMotionThreshold(0);
+		m_pObject->setCcdSweptSphereRadius(0.1f);
 	}
 
 	if (isStatic) {
