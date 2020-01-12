@@ -177,7 +177,7 @@ void SerializeWorld_f(const CCommand &args) {
 		pWorld->serialize(pSerializer);
 
 		// FIXME: We shouldn't be using this. Find the appropiate method from valve interfaces.
-		const char *pName = args.Arg(3);
+		const char *pName = args.Arg(2);
 		FILE *pFile = fopen(pName, "wb");
 		if (pFile) {
 			fwrite(pSerializer->getBufferPointer(), pSerializer->getCurrentBufferSize(), 1, pFile);
