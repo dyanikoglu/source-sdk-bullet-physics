@@ -524,7 +524,7 @@ static int gSolverMode = SOLVER_SIMD | SOLVER_USE_WARMSTARTING |
 
 // bt_solveriterations
 static void cvar_solver_iterations_Change(IConVar *var, const char *pOldValue, float flOldValue);
-static ConVar cvar_solver_iterations("bt_solver_iterations", "10", FCVAR_REPLICATED, "Number of collision solver iterations", true, 1, true, 32, cvar_solver_iterations_Change);
+static ConVar cvar_solver_iterations("bt_solver_iterations", "4", FCVAR_REPLICATED, "Number of collision solver iterations", true, 1, true, 32, cvar_solver_iterations_Change);
 static void cvar_solver_iterations_Change(IConVar *var, const char *pOldValue, float flOldValue)
 {
 	if(gBulletDynamicsWorld)
@@ -547,7 +547,7 @@ static void cvar_solver_residualthreshold_Change(IConVar *var, const char *pOldV
 }
 
 // bt_substeps
-static ConVar cvar_world_substeps("bt_world_substeps", "2", FCVAR_REPLICATED, "The amount of simulation substeps (higher number means higher precision)", true, 1, true, 8);
+static ConVar cvar_world_substeps("bt_world_substeps", "1", FCVAR_REPLICATED, "The amount of simulation substeps (higher number means higher precision)", true, 1, true, 8);
 
 // Threadsafe specific console variables
 #ifdef BT_THREADSAFE
