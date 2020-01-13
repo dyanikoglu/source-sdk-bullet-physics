@@ -1145,24 +1145,32 @@ void CPhysicsObject::Init(CPhysicsEnvironment *pEnv, btRigidBody *pObject, int m
 
 	// Compute our continuous collision detection stuff (for fast moving objects, prevents tunneling)
 	// This doesn't work on compound objects! see: btDiscreteDynamicsWorld::integrateTransforms
-	if (!isStatic) {
-		btVector3 mins, maxs;
-		m_pObject->getCollisionShape()->getAabb(btTransform::getIdentity(), mins, maxs);
-		mins = mins.absolute();
-		maxs = maxs.absolute();
+	// TODO: Add support for object specific CCD enable/disable. We only want objects able to move very fast use CCD
+	if (!isStatic) 
+	{
+		btScalar radius(1.0);
+		if (m_pObject->getCollisionShape()) {
+			btVector3 center;
+			m_pObject->getCollisionShape()->getBoundingSphere(center, radius);
+		}
 
-		float maxradius = min(min(maxs.getX(), maxs.getY()), maxs.getZ());
-		float minradius = min(min(mins.getX(), mins.getY()), mins.getZ());
-		float radius = min(maxradius, minradius);
-
-		m_pObject->setCcdMotionThreshold((radius / 2) * (radius / 2));
-		m_pObject->setCcdSweptSphereRadius(0.7f * radius);
+		m_pObject->setCcdMotionThreshold(1e-7);
+		m_pObject->setCcdSweptSphereRadius(radius * 0.2);
+	}
+	else
+	{
+		// Disable CCD
+		m_pObject->setCcdMotionThreshold(10000.0f);
+		m_pObject->setCcdSweptSphereRadius(0.0f);
 	}
 
-	if (isStatic) {
+	if (isStatic) 
+	{
 		m_pObject->setCollisionFlags(m_pObject->getCollisionFlags() | btCollisionObject::CF_STATIC_OBJECT);
 		m_pEnv->GetBulletEnvironment()->addRigidBody(m_pObject, COLGROUP_WORLD, ~COLGROUP_WORLD);
-	} else {
+	} 
+	else 
+	{
 		m_pEnv->GetBulletEnvironment()->addRigidBody(m_pObject);
 	}
 }
