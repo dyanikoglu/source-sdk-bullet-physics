@@ -78,7 +78,7 @@ CPhysicsObject::~CPhysicsObject() {
 	m_bRemoving = true;
 
 	if (m_pEnv) {
-		RemoveShadowController();
+		CPhysicsObject::RemoveShadowController();
 		m_pEnv->GetDragController()->RemovePhysicsObject(this);
 
 		if (m_pFluidController)
@@ -1338,7 +1338,7 @@ CPhysicsObject *CreatePhysicsSphere(CPhysicsEnvironment *pEnvironment, float rad
 
 		volume = pParams->volume;
 		if (volume <= 0) {
-			pParams->volume = (4 / 3) * M_PI_F * radius * radius * radius;
+			pParams->volume = (4.0f / 3.0f) * M_PI_F * radius * radius * radius;
 		}
 	}
 

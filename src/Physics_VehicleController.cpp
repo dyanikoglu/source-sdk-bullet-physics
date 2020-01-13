@@ -315,7 +315,7 @@ CPhysicsObject *CPhysicsVehicleController::CreateWheel(int wheelIndex, vehicle_a
 	// the wheels
 	float radius = axle.wheels.radius;
 	float r3 = radius * radius * radius;
-	params.volume = (4 / 3) * M_PI_F * r3;
+	params.volume = (4.0f / 3.0f) * M_PI_F * r3;
 
 	// TODO: Change this to a cylinder!
 	CPhysicsObject *pWheel = (CPhysicsObject *)m_pEnv->CreateSphereObject(radius, axle.wheels.materialIndex, wheelPositionHL, angles, &params);

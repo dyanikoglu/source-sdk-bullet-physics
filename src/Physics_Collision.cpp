@@ -213,7 +213,7 @@ class CPhysPolysoup {
 
 CPhysicsCollision::CPhysicsCollision() {
 	// Default to old behavior
-	EnableBBoxCache(true);
+	CPhysicsCollision::EnableBBoxCache(true);
 }
 
 CPhysicsCollision::~CPhysicsCollision() {

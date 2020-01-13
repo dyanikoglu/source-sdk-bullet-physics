@@ -231,7 +231,7 @@ class CObjectTracker {
 				CPhysicsObject *pObj = static_cast<CPhysicsObject*>(colObjArray[i]->getUserPointer());
 				if (!pObj) continue; // Internal object that the game doesn't need to know about
 
-				Assert(*(char *)pObj != 0xDD); // Make sure the object isn't deleted (only works in debug builds)
+				Assert(*(char *)pObj != 0xDD); // Make sure the object isn't deleted (only works in debug builds) TODO: This can be removed, result is always true
  
 				// Don't add objects marked for delete
 				if (pObj->GetCallbackFlags() & CALLBACK_MARKED_FOR_DELETE) {

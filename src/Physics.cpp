@@ -91,7 +91,7 @@ IPhysicsCollisionSet *CPhysics::FindOrCreateCollisionSet(unsigned int id, int ma
 		return m_collisionSets[m_colSetTable.Element(m_colSetTable.Find(id))];
 
 	CPhysicsCollisionSet *set = NULL;
-	if (maxElementCount < sizeof(int) * 8) { // Limit of 32 because of the way this works internally
+	if (maxElementCount < static_cast<int>(sizeof(int)) * 8) { // Limit of 32 because of the way this works internally
 		set = ::CreateCollisionSet(maxElementCount);
 		const int vecId = m_collisionSets.AddToTail(set);
 
