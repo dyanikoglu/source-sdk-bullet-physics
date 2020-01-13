@@ -79,30 +79,23 @@ class CDeleteQueue {
 bool CCollisionSolver::needBroadphaseCollision(btBroadphaseProxy *proxy0, btBroadphaseProxy *proxy1) const {
 	btRigidBody *body0 = btRigidBody::upcast(static_cast<btCollisionObject*>(proxy0->m_clientObject));
 	btRigidBody *body1 = btRigidBody::upcast(static_cast<btCollisionObject*>(proxy1->m_clientObject));
-	if (!body0 || !body1) {
-		btCollisionObject *colObj0 = static_cast<btCollisionObject*>(proxy0->m_clientObject);
-		btCollisionObject *colObj1 = static_cast<btCollisionObject*>(proxy1->m_clientObject);
 
+	if(!body0 || !body1)
+	{
 		// Check if one of them is a soft body
-		if (colObj0->getInternalType() & btCollisionObject::CO_SOFT_BODY || colObj1->getInternalType() & btCollisionObject::CO_SOFT_BODY) {
-			return true;
-		}
-
-		if (body0)
-			return !(body0->isStaticObject());
-		
-		if (body1)
-			return !(body1->isStaticObject());
-
-		return false;
+		//	btCollisionObject *colObj0 = static_cast<btCollisionObject*>(proxy0->m_clientObject);
+		//	btCollisionObject *colObj1 = static_cast<btCollisionObject*>(proxy1->m_clientObject);
+		//	if (colObj0->getInternalType() & btCollisionObject::CO_SOFT_BODY || colObj1->getInternalType() & btCollisionObject::CO_SOFT_BODY) {
+		//		return true;
+		//	}
+		return (body0 != nullptr && !body0->isStaticObject()) || (body1 != nullptr && !body1->isStaticObject());
 	}
 
 	CPhysicsObject *pObject0 = static_cast<CPhysicsObject*>(body0->getUserPointer());
 	CPhysicsObject *pObject1 = static_cast<CPhysicsObject*>(body1->getUserPointer());
 
-	bool collides = NeedsCollision(pObject0, pObject1);
-	collides = collides && (proxy0->m_collisionFilterGroup & proxy1->m_collisionFilterMask);
-	collides = collides && (proxy1->m_collisionFilterGroup & proxy0->m_collisionFilterMask);
+	bool collides = NeedsCollision(pObject0, pObject1) && 
+		(proxy0->m_collisionFilterGroup & proxy1->m_collisionFilterMask) && (proxy1->m_collisionFilterGroup & proxy0->m_collisionFilterMask);
 
 	if (!collides) {
 		// Clean this pair from the cache
@@ -114,28 +107,50 @@ bool CCollisionSolver::needBroadphaseCollision(btBroadphaseProxy *proxy0, btBroa
 
 bool CCollisionSolver::NeedsCollision(CPhysicsObject *pObject0, CPhysicsObject *pObject1) const {
 	if (pObject0 && pObject1) {
-		if (!pObject0->IsCollisionEnabled() || !pObject1->IsCollisionEnabled())
-			return false;
-
-		// No kinematic->static collisions
-		if ((pObject0->GetObject()->getCollisionFlags() & btCollisionObject::CF_KINEMATIC_OBJECT && pObject1->IsStatic())
-		 || (pObject1->GetObject()->getCollisionFlags() & btCollisionObject::CF_KINEMATIC_OBJECT && pObject0->IsStatic()))
-			return false;
-
 		// No static->static collisions
 		if (pObject0->IsStatic() && pObject1->IsStatic())
+		{
 			return false;
+		}
 
 		// No shadow->shadow collisions
 		if (pObject0->GetShadowController() && pObject1->GetShadowController())
+		{
 			return false;
-
-		if ((pObject0->GetCallbackFlags() & CALLBACK_ENABLING_COLLISION) || (pObject1->GetCallbackFlags() & CALLBACK_MARKED_FOR_DELETE)) return false;
-		if ((pObject1->GetCallbackFlags() & CALLBACK_ENABLING_COLLISION) || (pObject0->GetCallbackFlags() & CALLBACK_MARKED_FOR_DELETE)) return false;
-
-		if (m_pSolver && !m_pSolver->ShouldCollide(pObject0, pObject1, pObject0->GetGameData(), pObject1->GetGameData())) 
+		}
+		
+		if (!pObject0->IsCollisionEnabled() || !pObject1->IsCollisionEnabled()) 
+		{
+			
 			return false;
-	} else {
+		}
+
+		if ((pObject0->GetCallbackFlags() & CALLBACK_ENABLING_COLLISION) || (pObject1->GetCallbackFlags() & CALLBACK_MARKED_FOR_DELETE))
+		{
+			
+			return false;
+		}
+		
+		// No kinematic->static collisions
+		if ((pObject0->GetObject()->getCollisionFlags() & btCollisionObject::CF_KINEMATIC_OBJECT && pObject1->IsStatic())
+		 || (pObject1->GetObject()->getCollisionFlags() & btCollisionObject::CF_KINEMATIC_OBJECT && pObject0->IsStatic()))
+		{
+			return false;
+		}
+		
+		if ((pObject1->GetCallbackFlags() & CALLBACK_ENABLING_COLLISION) || (pObject0->GetCallbackFlags() & CALLBACK_MARKED_FOR_DELETE)) 
+		{
+			return false;
+		}
+
+		// Most expensive call, do this check last
+		if (m_pSolver && !m_pSolver->ShouldCollide(pObject0, pObject1, pObject0->GetGameData(), pObject1->GetGameData()))
+		{
+			return false;
+		}
+	}
+	else 
+	{
 		// One of the objects has no phys object...
 		if (pObject0 && !pObject0->IsCollisionEnabled())
 			return false;
@@ -162,7 +177,7 @@ void SerializeWorld_f(const CCommand &args) {
 		pWorld->serialize(pSerializer);
 
 		// FIXME: We shouldn't be using this. Find the appropiate method from valve interfaces.
-		const char *pName = args.Arg(3);
+		const char *pName = args.Arg(2);
 		FILE *pFile = fopen(pName, "wb");
 		if (pFile) {
 			fwrite(pSerializer->getBufferPointer(), pSerializer->getCurrentBufferSize(), 1, pFile);
@@ -524,7 +539,7 @@ static int gSolverMode = SOLVER_SIMD | SOLVER_USE_WARMSTARTING |
 
 // bt_solveriterations
 static void cvar_solver_iterations_Change(IConVar *var, const char *pOldValue, float flOldValue);
-static ConVar cvar_solver_iterations("bt_solver_iterations", "10", FCVAR_REPLICATED, "Number of collision solver iterations", true, 1, true, 32, cvar_solver_iterations_Change);
+static ConVar cvar_solver_iterations("bt_solver_iterations", "4", FCVAR_REPLICATED, "Number of collision solver iterations", true, 1, true, 32, cvar_solver_iterations_Change);
 static void cvar_solver_iterations_Change(IConVar *var, const char *pOldValue, float flOldValue)
 {
 	if(gBulletDynamicsWorld)
@@ -547,7 +562,7 @@ static void cvar_solver_residualthreshold_Change(IConVar *var, const char *pOldV
 }
 
 // bt_substeps
-static ConVar cvar_world_substeps("bt_world_substeps", "2", FCVAR_REPLICATED, "The amount of simulation substeps (higher number means higher precision)", true, 1, true, 8);
+static ConVar cvar_world_substeps("bt_world_substeps", "1", FCVAR_REPLICATED, "The amount of simulation substeps (higher number means higher precision)", true, 1, true, 8);
 
 // Threadsafe specific console variables
 #ifdef BT_THREADSAFE
