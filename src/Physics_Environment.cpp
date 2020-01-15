@@ -732,6 +732,8 @@ void CPhysicsEnvironment::CreateEmptyDynamicsWorld()
 	{
 		gBulletDynamicsWorldGuard = true;
 	}
+
+	m_pCollisionListener = new CCollisionEventListener(this);
 	
 	m_solverType = gSolverType;
 #ifdef BT_THREADSAFE
@@ -772,10 +774,14 @@ void CPhysicsEnvironment::CreateEmptyDynamicsWorld()
 			const int threadCount = cvar_threadcount.GetInt();
 			for (int i = 0; i < threadCount; ++i)
 			{
-				solvers.AddToTail(createSolverByType(poolSolverType));
+				auto solver = createSolverByType(poolSolverType);
+				solver->setSolveCallback(m_pCollisionListener);
+				solvers.AddToTail(solver);
 			}
 			solverPool = new btConstraintSolverPoolMt(solvers.Base(), threadCount);
 			m_pBulletSolver = solverPool;
+			
+			m_pBulletSolver->setSolveCallback(m_pCollisionListener);
 		}
 		btSequentialImpulseConstraintSolverMt* solverMt = NULL;
 		if (m_solverType == SOLVER_TYPE_SEQUENTIAL_IMPULSE_MT)
@@ -797,9 +803,8 @@ void CPhysicsEnvironment::CreateEmptyDynamicsWorld()
 
 		///collision configuration contains default setup for memory, collision setup
 		m_pBulletConfiguration = new btDefaultCollisionConfiguration();
-		//m_collisionConfiguration->setConvexConvexMultipointIterations();
 
-		///use the default collision dispatcher. For parallel processing you can use a diffent dispatcher (see Extras/BulletMultiThreaded)
+		// Use the default collision dispatcher. For parallel processing you can use a different dispatcher (see Extras/BulletMultiThreaded)
 		m_pBulletDispatcher = new btCollisionDispatcher(m_pBulletConfiguration);
 
 		m_pBulletBroadphase = new btDbvtBroadphase();
@@ -812,6 +817,7 @@ void CPhysicsEnvironment::CreateEmptyDynamicsWorld()
 			solverType = SOLVER_TYPE_SEQUENTIAL_IMPULSE;
 		}
 		m_pBulletSolver = createSolverByType(solverType);
+		m_pBulletSolver->setSolveCallback(m_pCollisionListener);
 
 		m_pBulletDynamicsWorld = new btDiscreteDynamicsWorld(m_pBulletDispatcher, m_pBulletBroadphase, m_pBulletSolver, m_pBulletConfiguration);
 	}
@@ -834,17 +840,8 @@ void CPhysicsEnvironment::CreateEmptyDynamicsWorld()
 	m_pBulletDynamicsWorld->getSolverInfo().m_minimumSolverBatchSize = 128; // Combine islands up to this many constraints
 	m_pBulletDynamicsWorld->getDispatchInfo().m_allowedCcdPenetration = 0.0001f;
 	m_pBulletDynamicsWorld->setApplySpeculativeContactRestitution(true);
-	// m_pBulletDynamicsWorld->getDispatchInfo().m_dispatchFunc = btDispatcherInfo::DISPATCH_CONTINUOUS;
-
-	//m_simPSIs = 0;
-	//m_invPSIscale = 0;
 
 	m_pBulletDynamicsWorld->setInternalTickCallback(TickCallback, (void *)this);
-
-	// TODO: Rewrite solver callbacks
-	// m_pCollisionListener = new CCollisionEventListener(this);
-	// m_pBulletSolver->setSolveCallback(m_pCollisionListener);
-	// m_pThreadManager->GetConstraintSolverPool()->setSolveCallback(m_pCollisionListener);
 
 #if DEBUG_DRAW
 	m_debugdraw = new CDebugDrawer(m_pBulletDynamicsWorld);
@@ -1439,9 +1436,6 @@ void CPhysicsEnvironment::BulletTick(btScalar dt) {
 	}
 
 	// DoCollisionEvents(dt);
-
-	//m_pCollisionSolver->EventPSI(this);
-	//m_pCollisionListener->EventPSI(this);
 
 	if (m_pCollisionEvent)
 		m_pCollisionEvent->PostSimulationFrame();
