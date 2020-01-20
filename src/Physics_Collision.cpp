@@ -1223,6 +1223,10 @@ bool CPhysicsCollision::IsBoxIntersectingCone(const Vector &boxAbsMins, const Ve
 	return false;
 }
 
+static int CompareFunc (const uint16 * a, const uint16 * b) {
+   return ( *a - *b );
+}
+
 static btConvexShape *LedgeToConvex(const ivpcompactledge_t *ledge) {
 	btConvexShape *pConvexOut = NULL;
 
@@ -1285,7 +1289,7 @@ static btConvexShape *LedgeToConvex(const ivpcompactledge_t *ledge) {
 		pConvexOut = pShape;
 #else
 		btConvexHullShape *pConvex = new btConvexHullShape;
-		pConvex->setMargin(COLLISION_MARGIN);
+		pConvex->setMargin(CONVEX_DISTANCE_MARGIN);
 
 		const ivpcompacttriangle_t *tris = (ivpcompacttriangle_t *)(ledge + 1);
 
@@ -1294,27 +1298,34 @@ static btConvexShape *LedgeToConvex(const ivpcompactledge_t *ledge) {
 		// If you find a better way you can replace this!
 		CUtlVector<uint16> indices;
 
-		for (int j = 0; j < ledge->n_triangles; j++) {
+		for (int j = 0; j < ledge->n_triangles; j++) 
+		{
 			Assert((uint)j == tris[j].tri_index); // Sanity check
-
-			for (int k = 0; k < 3; k++) {
-				uint16 index = tris[j].c_three_edges[k].start_point_index;
-
-				if (indices.Find(index) == -1) {
-					indices.AddToTail(index);
-				}
+			for (int k = 0; k < 3; k++) 
+			{
+				indices.AddToTail(tris[j].c_three_edges[k].start_point_index);
 			}
 		}
 
-		for (int j = 0; j < indices.Count(); j++) {
-			uint16 index = indices[j];
+		indices.Sort(CompareFunc);
 
+		for (int j = 0; j < indices.Count(); j++) 
+		{
+			if(j + 1 != indices.Count() && indices[j] == indices[j+1])
+			{
+				continue;
+			}
+			
+			uint16 index = indices[j];
 			float *ivpvert = (float *)(vertices + index * 16); // 16 is sizeof(ivp aligned vector)
 
 			btVector3 vertex;
 			ConvertIVPPosToBull(ivpvert, vertex);
 			pConvex->addPoint(vertex);
 		}
+
+		// Optimize the convex hull
+		pConvex->optimizeConvexHull();
 
 		pConvexOut = pConvex;
 #endif
