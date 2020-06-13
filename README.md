@@ -9,6 +9,12 @@ The repository is based on https://github.com/DrChat/Gmod-vphysics. Major change
 - Utilized new multithreaded modules of Bullet
 - Lots of performance improvements
 
+## Demonstration
+
+https://www.youtube.com/watch?v=6CH1BSyM92A
+
+https://www.youtube.com/watch?v=kMz_1qonMqs
+
 ## Building Vphysics.dll for Source SDK 2013
 
 - Checkout submodules inside thirdparty folder
