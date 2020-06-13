@@ -3,7 +3,7 @@ Bullet Physics Injection for Source SDK 2013.
 
 ## About
 
-The repository is based on https://github.com/DrChat/Gmod-vphysics. Major changes on this implementation are;
+The repository is based on https://github.com/DrChat/Gmod-vphysics. It's not forked because of having whole Bullet SDK pushed into same repository to keep this repository crisp & clear. Major changes on this implementation are;
 
 - Updated version of Bullet SDK. The base repositry had an ancient version of Bullet with lots of deprecated stuff being used.
 - Utilized new multithreaded modules of Bullet
