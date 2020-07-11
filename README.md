@@ -1,22 +1,20 @@
 # source-sdk-bullet-physics
-Bullet Physics Injection for Source SDK 2013.
+Experimental Bullet Physics Injection for Source SDK 2013.
+
+![image](https://i.ibb.co/nkcRSLg/download.gif)
 
 ## About
-
-The repository is based on https://github.com/DrChat/Gmod-vphysics. It's not forked because of that one having whole Bullet SDK pushed into same repository, to keep my repository crisp & clear. Major changes on this implementation are;
+The repository is based on https://github.com/DrChat/Gmod-vphysics. It's not forked because of that one having whole Bullet SDK pushed into same repository, to keep my repository crisp & clear. Major changes on this implementation are:
 
 - Updated version of Bullet SDK. The base repository had an ancient version of Bullet with lots of deprecated stuff being used.
-- Utilized new multithreaded modules of Bullet
+- Utilization of new multithreaded modules of Bullet SDK
 - Lots of performance improvements
 
-## Demonstration
-
-https://www.youtube.com/watch?v=6CH1BSyM92A
-
-https://www.youtube.com/watch?v=kMz_1qonMqs
+Demonstration recordings can be found on:
+- https://www.youtube.com/watch?v=6CH1BSyM92A
+- https://www.youtube.com/watch?v=kMz_1qonMqs
 
 ## Building Vphysics.dll for Source SDK 2013
-
 - Checkout submodules inside thirdparty folder
 - Follow the instructions on bullet3 repository to build Bullet libs & binaries
 - Open vphysics solution and build the project
@@ -54,5 +52,4 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 ## Contribution
-
 Source code is licensed under MIT license, and other developers are encouraged to fork the repository, open issues & pull requests to help the development.
