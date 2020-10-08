@@ -22,7 +22,7 @@ Demonstration recordings can be found on:
 
 ## Known Issues
 - Save/Load functionality doesn't work, and mostly crashes the game. You should disable physics restore functionality on save/load module of Source SDK 2013 to fix this issue.
-- Small objects with very high speed (Thrown grenades for example) may pass through from landscape mesh. Also, big objects with very high speed may have a tunnelling effect while colliding with landscape meshes. That's mostly an issue with Bullet's messed up convex mesh collision algorithm, and it's not likely to be solved because of core part of the physics engine being abondoned on development.
+- Small objects with very high speed (Thrown grenades for example) may pass through landscape mesh. Also, big objects with very high speed may have a tunnelling effect while colliding with landscape meshes. That's mostly an issue with Bullet's messed up convex mesh collision algorithm, and it's not likely to be solved because of core part of the physics engine being abandoned on development.
 - Impact damage is not implemented. Because of Bullet's lack of a proper callback system for hit/impact/collision events, it requires huge amount of effort while using multithreaded modules of Bullet.
 - Physics impact sounds are broken, again, it will probably require huge amount of effort to be fixed.
 - The implementation is highly experimental, it's not recommended to use it with production purposes.
